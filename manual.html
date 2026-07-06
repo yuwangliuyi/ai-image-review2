@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 图片审核系统 — 功能使用说明书</title>
+<style>
+  :root {
+    --primary: oklch(0.55 0.2 250);
+    --primary-light: oklch(0.92 0.03 250);
+    --bg: #f8f9fb;
+    --card: #fff;
+    --text: #1a1a2e;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    display: flex;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    position: sticky; top: 0;
+    width: 260px; min-width: 260px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #fff;
+    border-right: 1px solid var(--border);
+    padding: 28px 0;
+    z-index: 10;
+  }
+  nav .logo {
+    padding: 0 24px 24px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  nav .logo svg { width: 24px; height: 24px; flex-shrink: 0; }
+  nav a {
+    display: block; padding: 10px 24px;
+    font-size: 14px; color: var(--text-muted);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  nav a:hover { background: var(--primary-light); color: var(--primary); }
+  nav a.active { background: var(--primary-light); color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+  nav .section-title {
+    padding: 20px 24px 8px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: #9ca3af;
+  }
+
+  /* ── Main ── */
+  main {
+    flex: 1; min-width: 0;
+    max-width: 900px;
+    padding: 40px 48px 80px;
+  }
+  h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+  h1 + p { color: var(--text-muted); font-size: 15px; margin-bottom: 40px; }
+  h2 {
+    font-size: 20px; font-weight: 700;
+    margin: 48px 0 16px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  h3 { font-size: 16px; font-weight: 600; margin: 28px 0 10px; color: var(--primary); }
+  p { margin-bottom: 12px; color: var(--text-muted); font-size: 14px; max-width: 80ch; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .card p { margin-bottom: 0; }
+
+  /* ── Code / shortcuts ── */
+  .kbd {
+    display: inline-block;
+    font-size: 12px; font-weight: 600;
+    padding: 2px 8px; margin: 0 2px;
+    background: #f3f4f6; border: 1px solid #d1d5db;
+    border-radius: 5px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    background: #f3f4f6;
+    padding: 2px 6px; border-radius: 4px;
+  }
+  pre {
+    background: #1e1e2e; color: #cdd6f4;
+    padding: 16px 20px; border-radius: var(--radius);
+    overflow-x: auto; font-size: 13px; line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    font-size: 12px; font-weight: 600;
+    padding: 2px 10px; margin: 2px 4px;
+    border-radius: 99px;
+  }
+  .tag-admin { background: #fef3c7; color: #92400e; }
+  .tag-reviewer { background: #dbeafe; color: #1e40af; }
+  .tag-uploader { background: #d1fae5; color: #065f46; }
+  .tag-pending { background: #fef3c7; color: #92400e; }
+  .tag-approved { background: #d1fae5; color: #065f46; }
+  .tag-rejected { background: #fee2e2; color: #991b1b; }
+
+  /* ── Table ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px; margin: 16px 0;
+  }
+  th, td {
+    text-align: left; padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { font-weight: 600; background: #f9fafb; color: var(--text-muted); font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Steps ── */
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative; padding-left: 40px; margin-bottom: 20px;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 2px;
+    width: 26px; height: 26px;
+    background: var(--primary);
+    color: #fff; font-size: 13px; font-weight: 700;
+    border-radius: 99px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    nav {
+      position: relative; width: 100%; min-width: 0; height: auto;
+      border-right: none; border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+    }
+    nav a { padding: 8px 16px; }
+    main { padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<nav>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    AI 图片审核系统
+  </div>
+
+  <div class="section-title">概述</div>
+  <a href="#overview">系统概述</a>
+  <a href="#roles">角色与权限</a>
+
+  <div class="section-title">操作指南</div>
+  <a href="#login">注册与登录</a>
+  <a href="#dashboard">仪表盘</a>
+  <a href="#upload">图片上传</a>
+  <a href="#review">审核中心</a>
+  <a href="#datacenter">数据中心</a>
+  <a href="#archive">归档管理</a>
+  <a href="#notifications">站内通知</a>
+  <a href="#admin">用户管理</a>
+  <a href="#export">数据导出</a>
+
+  <div class="section-title">附录</div>
+  <a href="#shortcuts">快捷键速查</a>
+  <a href="#glossary">术语表</a>
+</nav>
+
+<!-- ═══════ MAIN CONTENT ═══════ -->
+<main>
+
+<h1>AI 图片审核系统</h1>
+<p>功能使用说明书 · 版本 1.0 · 适用于全部角色用户</p>
+
+<hr style="border:none;border-top:1px solid var(--border);margin-bottom:40px;">
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="overview">1. 系统概述</h2>
+
+<p>AI 图片审核系统是一套面向跨境电商视觉团队的<strong>图片上传·审核·归档</strong>全流程管理平台。它覆盖了从图片上传到最终归档的完整链路，并为不同角色的用户提供差异化的数据视图和操作权限。</p>
+
+<div class="card">
+  <h4>核心功能模块</h4>
+  <table>
+    <tr><th>模块</th><th>功能</th><th>适用角色</th></tr>
+    <tr><td>仪表盘</td><td>全局/部门/个人三维度数据看板</td><td>全部</td></tr>
+    <tr><td>图片上传</td><td>创建 SPU 任务 → 批量上传图片</td><td>上传者</td></tr>
+    <tr><td>审核中心</td><td>逐张审核图片，通过/驳回/跳过</td><td>审核员</td></tr>
+    <tr><td>数据中心</td><td>SPU · 图片 · 审核记录明细查询</td><td>全部</td></tr>
+    <tr><td>归档管理</td><td>审核通过的 SPU 批量打包下载</td><td>全部</td></tr>
+    <tr><td>站内通知</td><td>审核结果实时通知</td><td>全部</td></tr>
+    <tr><td>用户管理</td><td>创建/删除系统账号</td><td>管理员</td></tr>
+    <tr><td>数据导出</td><td>全量数据一键导出 Excel</td><td>管理员 / 何扬帆</td></tr>
+  </table>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="roles">2. 角色与权限体系</h2>
+
+<p>系统内置三种角色，不同角色看到的功能和可执行的操作不同。</p>
+
+<table>
+  <tr><th>角色</th><th>标识</th><th>权限范围</th></tr>
+  <tr>
+    <td><span class="tag tag-admin">管理员 (ADMIN)</span></td>
+    <td>系统最高权限</td>
+    <td>所有功能 + 用户管理 + 数据导出 + 创建新账号</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-reviewer">审核员 (REVIEWER)</span></td>
+    <td>审核 + 查看</td>
+    <td>审核中心 · 数据中心 · 归档 · 仪表盘 · 通知<br>（何扬帆额外拥有数据导出权限）</td>
+  </tr>
+  <tr>
+    <td><span class="tag tag-uploader">上传者 (UPLOADER)</span></td>
+    <td>上传 + 查看</td>
+    <td>图片上传 · 数据中心（仅本人数据）· 归档（仅本人通过的 SPU）· 仪表盘 · 通知</td>
+  </tr>
+</table>
+
+<div class="card">
+  <h4>🔐 数据隔离规则</h4>
+  <p>
+    上传者只能看到自己上传的图片和 SPU；审核员可以看到被分配给自己审核的图片；管理员可以查看全量数据。数据中心和归档列表均按此规则过滤。
+  </p>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="login">3. 注册与登录</h2>
+
+<h3>3.1 登录</h3>
+<p>进入系统首页自动跳转登录页。输入<strong>用户名 + 密码</strong>即可登录。已登录用户访问登录页会自动跳转到仪表盘。</p>
+
+<h3>3.2 注册新用户</h3>
+<div class="card">
+  <h4>⚠️ 权限限制</h4>
+  <p>注册页面仅对<strong>管理员 (ADMIN)</strong>和审核员<strong>何扬帆</strong>开放。其他用户无法访问注册页，这将确保账号创建受控。</p>
+</div>
+<p>注册需要填写：用户名、邮箱、部门、密码、角色。</p>
+<p>系统会检测用户名是否已存在，冲突时给出提示。</p>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="dashboard">4. 仪表盘</h2>
+<p>登录后的默认首页，以图表形式展示系统数据概览。支持三个维度切换：</p>
+
+<ol class="steps">
+  <li><strong>总体概览</strong> — 全公司 SPU 数量、图片统计、通过率、驳回原因分布</li>
+  <li><strong>部门视图</strong> — 按部门拆分，对比各团队的上传量和通过率</li>
+  <li><strong>个人视图</strong> — 仅显示当前登录用户自己的数据</li>
+</ol>
+
+<div class="card">
+  <h4>📊 看板内容</h4>
+  <p>
+    顶部卡片：SPU 总数 · 图片总数 · 通过率 · 归档数<br>
+    图表区域：柱状图（品类分布）+ 饼图（审核状态 / 驳回原因）<br>
+    自动刷新：每 30 秒自动更新一次数据
+  </p>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="upload">5. 图片上传</h2>
+
+<p>上传流程采用<strong>SPU → 图片</strong>两级结构，先创建任务再往里面塞图。</p>
+
+<h3>5.1 创建 SPU 任务</h3>
+<ol class="steps">
+  <li>点击「上传图片」进入 SPU 任务列表</li>
+  <li>点击右上角 <strong>+ 新建 SPU</strong></li>
+  <li>填写 SPU 名称、选择品类、填写国家风格、选择店铺</li>
+  <li>点击「创建」——SPU 创建后进入待上传状态</li>
+</ol>
+
+<div class="card">
+  <h4>💡 自动补全</h4>
+  <p>品类和店铺字段支持<strong>输入即搜</strong>——输入关键词后系统自动匹配已有选项，也支持输入全新的品类或店铺名称。</p>
+</div>
+
+<h3>5.2 上传图片</h3>
+<ol class="steps">
+  <li>在 SPU 列表中点击目标 SPU，进入详情页</li>
+  <li><strong>拖拽图片文件</strong>到上传区域，或点击区域选择文件</li>
+  <li>支持一次上传多张，每张图片会显示缩略图预览</li>
+  <li>可点击 ❌ 删除单张图片</li>
+  <li>上传后图片状态为 <span class="tag tag-pending">待审核</span></li>
+</ol>
+
+<div class="card">
+  <h4>📁 文件规范</h4>
+  <p>
+    支持 JPG / PNG / WebP 格式，单文件建议不超过 20MB。<br>
+    系统会自动按「品类 / 店铺 / SPU 名称 / 国家风格」生成结构化存储路径。
+  </p>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="review">6. 审核中心</h2>
+
+<p>审核员在此逐张审核图片，是系统的核心工作台。</p>
+
+<h3>6.1 审核界面</h3>
+<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-muted);font-size:14px;">
+  <li>左侧：大图预览，点击可灯箱放大查看细节</li>
+  <li>右侧：图片信息（文件名、大小、所属 SPU、品类、上传者）</li>
+  <li>底部缩略图条：可切换当前 SPU 下的其他图片</li>
+  <li>顶部筛选栏：按审核状态筛选（待审 / 已通过 / 已驳回）</li>
+</ul>
+
+<h3>6.2 审核操作</h3>
+<table>
+  <tr><th>操作</th><th>快捷键</th><th>效果</th></tr>
+  <tr><td>✅ 通过</td><td><span class="kbd">Enter</span> 或 <span class="kbd">A</span></td><td>图片状态变为「已通过」，自动跳至下一张</td></tr>
+  <tr><td>❌ 驳回</td><td><span class="kbd">R</span></td><td>弹出驳回意见框，填写原因后提交，自动跳至下一张</td></tr>
+  <tr><td>⏭ 跳过</td><td><span class="kbd">S</span> 或 <span class="kbd">→</span></td><td>保留当前状态，跳至下一张</td></tr>
+  <tr><td>⬅ 上一张</td><td><span class="kbd">←</span></td><td>回到上一张图片</td></tr>
+  <tr><td>🔍 放大</td><td><span class="kbd">Space</span></td><td>灯箱模式全屏查看</td></tr>
+</table>
+
+<div class="card">
+  <h4>📝 审核记录</h4>
+  <p>每张图片的右侧面板会显示<strong>完整审核历史</strong>，包含审核人、操作、时间、驳回意见。即使图片被重复审核，历史记录也会完整保留。</p>
+</div>
+
+<h3>6.3 SPU 归档触发</h3>
+<p>当某个 SPU 下<strong>所有图片都通过后</strong>，该 SPU 自动进入归档列表，无需手动操作。</p>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="datacenter">7. 数据中心</h2>
+
+<p>以表格形式展示系统所有明细数据，支持查询、筛选和翻页。</p>
+
+<h3>三个标签页</h3>
+<table>
+  <tr><th>标签</th><th>展示内容</th></tr>
+  <tr><td>📦 SPU 任务</td><td>SPU 名称、品类、国家风格、店铺、状态、上传者、审核员、创建时间、图片统计</td></tr>
+  <tr><td>🖼 图片列表</td><td>文件名、大小、所属 SPU、品类、上传者、批次号、审核状态、上传时间</td></tr>
+  <tr><td>📋 审核记录</td><td>图片名、审核人、操作 (通过/驳回)、驳回意见、审核时间</td></tr>
+</table>
+
+<h3>筛选与搜索</h3>
+<p>
+  支持按<strong>审核状态</strong>（全部 / 待审 / 通过 / 驳回）筛选；<br>
+  支持<strong>关键词搜索</strong> SPU 名称或文件名；<br>
+  每页 20 条记录，底部有分页导航。
+</p>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="archive">8. 归档管理</h2>
+
+<p>审核全部通过后的 SPU 会自动出现在「归档管理」页面。该页面提供：</p>
+<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-muted);font-size:14px;">
+  <li>归档列表：SPU 名称、品类、国家风格、店铺、图片数量、归档时间</li>
+  <li>🔽 下载按钮：点击将整个 SPU 的图片打包下载为 ZIP</li>
+  <li>分页浏览：支持翻页查看历史归档</li>
+</ul>
+
+<div class="card">
+  <h4>📥 下载说明</h4>
+  <p>
+    每个 SPU 独立打包下载。文件按「品类/店铺/SPU名称/国家风格/文件名」的目录结构组织在 ZIP 内。<br>
+    下载按钮仅对通过审核的上传者和管理员可见。
+  </p>
+</div>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="notifications">9. 站内通知</h2>
+
+<p>系统在以下场景自动发送通知给上传者：</p>
+<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-muted);font-size:14px;">
+  <li>SPU 审核全部通过 ✅</li>
+  <li>图片被驳回（含驳回原因）❌</li>
+</ul>
+
+<h3>通知入口</h3>
+<p>
+  顶部导航栏右侧的 <strong>🔔 铃铛图标</strong> 显示未读通知数量（红点角标）。<br>
+  点击铃铛进入通知列表页，可查看所有通知详情。<br>
+  支持 <strong>「全部已读」</strong> 一键标记。
+</p>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="admin">10. 用户管理</h2>
+
+<div class="card">
+  <h4>🔒 仅管理员可访问</h4>
+  <p>「用户管理」入口仅对 ADMIN 角色可见（左侧导航栏底部「系统管理」区域）。</p>
+</div>
+
+<h3>功能</h3>
+<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-muted);font-size:14px;">
+  <li>查看所有用户列表：姓名、部门、角色、邮箱、注册时间</li>
+  <li>按角色筛选（全部 / 管理员 / 审核员 / 上传者）</li>
+  <li>➕ 创建新用户（跳转至注册页）</li>
+  <li>🗑 删除用户（弹出二次确认）</li>
+</ul>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="export">11. 数据导出</h2>
+
+<div class="card">
+  <h4>🔒 权限</h4>
+  <p>仅<strong>管理员 (ADMIN)</strong> 和审核员 <strong>何扬帆</strong> 可见导出按钮。</p>
+</div>
+
+<p>在「数据中心」页面右上角，点击绿色 <strong>「导出全部数据」</strong> 按钮，系统将生成一个 Excel 文件（.xlsx），包含 4 个工作表：</p>
+
+<table>
+  <tr><th>Sheet</th><th>内容</th></tr>
+  <tr><td>用户汇总</td><td>姓名、部门、角色、邮箱、注册时间、上传 SPU 数、上传图片张数、通过/驳回/待审图片数、审核记录数</td></tr>
+  <tr><td>SPU 明细</td><td>SPU 名称、品类、国家风格、店铺、状态、上传者/部门、审核员、创建时间、图片总数及各状态数量</td></tr>
+  <tr><td>图片明细</td><td>文件名、大小、类型、所属 SPU、品类、上传者/部门、批次号、审核状态、审核人/部门、审核意见、时间</td></tr>
+  <tr><td>归档明细</td><td>SPU 名称、品类、国家风格、店铺、上传者、部门、图片数量、归档时间</td></tr>
+</table>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="shortcuts">附录 A · 快捷键速查</h2>
+
+<table>
+  <tr><th>快捷键</th><th>功能</th><th>适用页面</th></tr>
+  <tr><td><span class="kbd">Enter</span> / <span class="kbd">A</span></td><td>通过当前图片</td><td>审核中心</td></tr>
+  <tr><td><span class="kbd">R</span></td><td>驳回当前图片（弹出意见框）</td><td>审核中心</td></tr>
+  <tr><td><span class="kbd">S</span> / <span class="kbd">→</span></td><td>跳过当前图片（下一张）</td><td>审核中心</td></tr>
+  <tr><td><span class="kbd">←</span></td><td>上一张图片</td><td>审核中心</td></tr>
+  <tr><td><span class="kbd">Space</span></td><td>灯箱放大查看</td><td>审核中心</td></tr>
+  <tr><td><span class="kbd">Esc</span></td><td>关闭灯箱 / 关闭弹窗</td><td>全局</td></tr>
+</table>
+
+<!-- ──────────────────────────────────────────── -->
+<h2 id="glossary">附录 B · 术语表</h2>
+
+<table>
+  <tr><th>术语</th><th>说明</th></tr>
+  <tr><td>SPU</td><td>Standard Product Unit，标准产品单元，对应一个拍摄任务</td></tr>
+  <tr><td>国家风格</td><td>目标市场的家居装饰风格，如 Modern / Farmhouse / Coastal 等</td></tr>
+  <tr><td>审核员</td><td>负责图片质量审核的角色，每个 SPU 可指定一个审核员</td></tr>
+  <tr><td>归档</td><td>SPU 下所有图片全部通过后自动进入归档，可打包下载</td></tr>
+  <tr><td>灯箱 (Lightbox)</td><td>点击图片后全屏放大查看的模式，支持鼠标滚轮缩放</td></tr>
+  <tr><td>批次号 (Batch ID)</td><td>同一批次上传的图片共享一个批次号，用于追溯和下载隔离</td></tr>
+</table>
+
+<hr style="border:none;border-top:1px solid var(--border);margin-top:48px;">
+
+<p style="font-size:12px;color:#9ca3af;">
+  AI 图片审核系统 · 功能使用说明书 · 由 AI 自动生成于 2026-07-02
+</p>
+
+</main>
+
+<script>
+// 滚动高亮当前章节
+const nav = document.querySelector('nav');
+const links = nav.querySelectorAll('a[href^="#"]');
+const sections = [...links].map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = nav.querySelector(`a[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-10% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

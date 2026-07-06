@@ -1,0 +1,14 @@
+services:
+  ai-image-review:
+    build: .
+    container_name: ai-image-review
+    ports:
+      - "8001:8001"
+    volumes:
+      - /data/ai-image-review/data:/app/data
+      - /data/ai-image-review/uploads:/app/public/uploads
+    environment:
+      - DATABASE_URL=file:/app/data/dev.db
+      - NEXTAUTH_SECRET=9fd7AqX#kL81sP2vM8xNw4Rr6@tHyZbQ
+      - NEXTAUTH_URL=http://192.168.110.90:8001
+    restart: unless-stopped

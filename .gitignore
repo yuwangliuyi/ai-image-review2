@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env
+*.db
+*.db-journal
+public/uploads/
+approved-images/
+dist/
+.turbo/
+.DS_Store
+tmp/
+tsconfig.tsbuildinfo
+*.zip

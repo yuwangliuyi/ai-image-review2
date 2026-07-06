@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  email      String
+  department String
+  password   String
+  role       String   @default("UPLOADER")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  uploadedSpus    Spu[]          @relation("SpuUploader")
+  assignedSpus    Spu[]          @relation("SpuReviewer")
+  uploadedImages  Image[]        @relation("ImageUploader")
+  reviews        ReviewRecord[]
+  notifications  Notification[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   @default("INFO") // SPU_APPROVED | SPU_REJECTED | IMAGE_REJECTED
+  message   String
+  relatedId String?  // 关联的 SPU/Image ID
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Spu {
+  id                 String   @id @default(uuid())
+  name               String
+  category           String   @default("")
+  countryStyle       String   @default("")
+  shopName           String   @default("")
+  status             String   @default("PENDING")
+  uploadedById       String
+  uploadedBy         User     @relation("SpuUploader", fields: [uploadedById], references: [id])
+  assignedReviewerId String?
+  assignedReviewer   User?    @relation("SpuReviewer", fields: [assignedReviewerId], references: [id])
+  department         String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  images             Image[]
+  archive            Archive?
+}
+
+model Image {
+  id            String   @id @default(uuid())
+  filename      String
+  storedPath    String
+  thumbnailPath String?
+  fileSize      Int
+  mimeType      String
+  status        String   @default("PENDING")
+  spuId         String
+  spu           Spu      @relation(fields: [spuId], references: [id])
+  uploadedById  String
+  uploadedBy    User     @relation("ImageUploader", fields: [uploadedById], references: [id])
+  batchId       String?
+  storedLocalPath String?  // 审核通过后的结构化储存路径
+  createdAt     DateTime @default(now())
+
+  reviews       ReviewRecord[]
+  @@index([batchId])
+}
+
+model ReviewRecord {
+  id         String   @id @default(uuid())
+  imageId    String
+  image      Image    @relation(fields: [imageId], references: [id])
+  reviewerId String
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
+  action     String
+  comment    String?
+  createdAt  DateTime @default(now())
+}
+
+model Archive {
+  id               String   @id @default(uuid())
+  spuId            String   @unique
+  spu              Spu      @relation(fields: [spuId], references: [id])
+  spuName          String
+  category         String   @default("")
+  countryStyle     String   @default("")
+  shopName         String   @default("")
+  uploadedByName   String
+  department       String
+  imageCount       Int
+  archivedAt       DateTime @default(now())
+}

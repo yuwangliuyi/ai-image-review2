@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* ========== 设计令牌 (Design Tokens) ========== */
+@theme {
+  /* 背景层 */
+  --color-bg: oklch(99% 0.002 240);
+  --color-surface: oklch(100% 0 0);
+  --color-fg: oklch(18% 0.012 250);
+  --color-muted: oklch(54% 0.012 250);
+  --color-border: oklch(92% 0.005 250);
+
+  /* 强调色 */
+  --color-accent: oklch(58% 0.18 255);
+  --color-accent-hover: oklch(50% 0.18 255);
+  --color-accent-subtle: oklch(58% 0.18 255 / 0.06);
+
+  /* 语义色 */
+  --color-success: oklch(66% 0.16 160);
+  --color-success-subtle: oklch(66% 0.16 160 / 0.06);
+  --color-warn: oklch(70% 0.15 80);
+  --color-warn-subtle: oklch(70% 0.15 80 / 0.06);
+  --color-danger: oklch(56% 0.18 25);
+  --color-danger-subtle: oklch(56% 0.18 25 / 0.05);
+
+  /* 归档/中性态 */
+  --color-archive: oklch(60% 0.04 250);
+  --color-archive-subtle: oklch(60% 0.04 250 / 0.06);
+
+  /* 字体 */
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-body: 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+
+  /* 圆角 */
+  --radius-card: 14px;
+  --radius-input: 10px;
+  --radius-pill: 999px;
+  --radius-nav: 8px;
+  --radius-form: 18px;
+  --radius-zone: 16px;
+
+  /* 动画 */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ========== 全局基座 ========== */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== 聚焦指示器 ========== */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+  border-radius: var(--radius-input);
+}
+
+/* ========== 动效 → 尊重系统偏好 ========== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========== 退场动画 ========== */
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-out {
+  animation: slide-out-right 280ms var(--ease-out-expo) forwards;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 200ms var(--ease-out-expo) forwards;
+}
+
+/* ========== 滚动条美化 ========== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
