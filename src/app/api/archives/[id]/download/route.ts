@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth-utils";
 import path from "path";
-import { stat, readFile, mkdir, rm } from "fs/promises";
-import { randomUUID } from "crypto";
-import { Readable } from "stream";
+import { stat } from "fs/promises";
+import archiver from "archiver";
+import { PassThrough } from "stream";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -59,9 +59,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const publicDir = path.join(process.cwd(), "public");
 
     // 使用 archiver 流式生成 ZIP（正确处理 UTF-8 extra field）
-    const archiver = (await import("archiver")).default;
-    const { PassThrough } = await import("stream");
-
     const archive_stream = archiver("zip", {
       zlib: { level: 6 },
       // forceUTF8: true 确保文件名以 UTF-8 写入 ZIP
