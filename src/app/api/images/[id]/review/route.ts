@@ -154,24 +154,28 @@ export async function POST(
       );
     }
 
-    // 审核通过时写入结构化储存路径
+    // 审核通过时写入结构化储存路径（非关键路径，失败不影响审核结果）
     if (action === "APPROVED") {
-      const sourcePath = path.join(process.cwd(), "public", image.storedPath);
-      const localPath = await saveApprovedImage({
-        sourcePath,
-        originalFilename: image.filename,
-        spu: {
-          category: image.spu.category || "",
-          countryStyle: image.spu.countryStyle || "",
-          name: image.spu.name,
-          shopName: image.spu.shopName || "",
-        },
-      });
-      if (localPath) {
-        await prisma.image.update({
-          where: { id: imageId },
-          data: { storedLocalPath: localPath },
+      try {
+        const sourcePath = path.join(process.cwd(), "public", image.storedPath);
+        const localPath = await saveApprovedImage({
+          sourcePath,
+          originalFilename: image.filename,
+          spu: {
+            category: image.spu.category || "",
+            countryStyle: image.spu.countryStyle || "",
+            name: image.spu.name,
+            shopName: image.spu.shopName || "",
+          },
         });
+        if (localPath) {
+          await prisma.image.update({
+            where: { id: imageId },
+            data: { storedLocalPath: localPath },
+          });
+        }
+      } catch (storageError) {
+        console.error("[review] 结构化储存写入失败（审核结果不受影响）:", storageError);
       }
     }
 

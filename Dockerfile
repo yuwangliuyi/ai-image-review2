@@ -34,8 +34,8 @@ COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY docker-entrypoint.sh ./
 
 RUN chmod +x docker-entrypoint.sh && \
-    mkdir -p /app/data /app/public/uploads && \
-    chown -R nextjs:nodejs /app/data /app/public/uploads
+    mkdir -p /app/data /app/public/uploads /app/approved-images && \
+    chown -R nextjs:nodejs /app/data /app/public/uploads /app/approved-images
 
 USER nextjs
 

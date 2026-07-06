@@ -7,6 +7,7 @@ services:
     volumes:
       - /data/ai-image-review/data:/app/data
       - /data/ai-image-review/uploads:/app/public/uploads
+      - /data/ai-image-review/approved-images:/app/approved-images
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NEXTAUTH_SECRET=9fd7AqX#kL81sP2vM8xNw4Rr6@tHyZbQ
