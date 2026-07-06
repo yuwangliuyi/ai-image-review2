@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth-utils";
 import path from "path";
 import { stat } from "fs/promises";
-import archiver from "archiver";
-import { PassThrough } from "stream";
+
+// archiver 是 CJS 模块，Turbopack 不允许 static import default
+const archiver = require("archiver");
+const { PassThrough } = require("stream");
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
