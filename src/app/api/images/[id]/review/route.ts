@@ -157,7 +157,10 @@ export async function POST(
     // 审核通过时写入结构化储存路径（非关键路径，失败不影响审核结果）
     if (action === "APPROVED") {
       try {
-        const sourcePath = path.join(process.cwd(), "public", image.storedPath);
+        // 从 storedPath（/uploads/xxx.png）提取文件名，拼接完整路径
+        const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+        const filename = path.basename(image.storedPath);
+        const sourcePath = path.join(UPLOAD_DIR, filename);
         const localPath = await saveApprovedImage({
           sourcePath,
           originalFilename: image.filename,

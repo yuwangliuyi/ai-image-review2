@@ -127,6 +127,53 @@ export async function GET(
         break;
       }
 
+      case "storage-inventory": {
+        // 已通过图片存储清单（用于定期迁移/删除）
+        // 支持 month 参数：格式 YYYY-MM，不传则返回全部
+        const month = searchParams.get("month"); // YYYY-MM
+        const where: any = { status: "APPROVED" };
+
+        if (month) {
+          const [y, m] = month.split("-").map(Number);
+          const start = new Date(y, m - 1, 1);
+          const end = new Date(y, m, 1);
+          where.createdAt = { gte: start, lt: end };
+        }
+
+        if (userRole === "UPLOADER") where.uploadedById = userId;
+        else if (userRole === "REVIEWER") where.spu = { assignedReviewerId: userId };
+
+        [items, total] = await Promise.all([
+          prisma.image.findMany({
+            where,
+            select: {
+              id: true,
+              filename: true,
+              storedPath: true,
+              storedLocalPath: true,
+              fileSize: true,
+              mimeType: true,
+              createdAt: true,
+              spu: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                  countryStyle: true,
+                  shopName: true,
+                },
+              },
+              uploadedBy: { select: { name: true, department: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: limit,
+          }),
+          prisma.image.count({ where }),
+        ]);
+        break;
+      }
+
       default:
         return NextResponse.json({ error: "无效的数据类型" }, { status: 400 });
     }

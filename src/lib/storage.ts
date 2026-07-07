@@ -40,7 +40,7 @@ async function fileExists(filePath: string): Promise<boolean> {
  * @returns 储存后的绝对路径，如果文件已存在则返回 null（不覆盖）
  */
 export async function saveApprovedImage(params: {
-  sourcePath: string;       // public/uploads/xxx.png 绝对路径
+  sourcePath: string;       // public/uploads/xxx.png 绝对路径（已 resolve 好的完整路径）
   originalFilename: string; // 原始文件名
   spu: {
     category: string;
@@ -51,7 +51,7 @@ export async function saveApprovedImage(params: {
 }): Promise<string | null> {
   const { sourcePath, originalFilename, spu } = params;
 
-  // 安全处理文件名：移除路径分隔符
+  // 安全处理文件名：移除路径分隔符，保留原始扩展名
   const safeFilename = originalFilename.replace(/[/\\]/g, "_");
   const dirPath = buildPath(spu);
   const destPath = path.join(dirPath, safeFilename);

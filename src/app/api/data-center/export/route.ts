@@ -200,6 +200,47 @@ export async function GET(req: NextRequest) {
     }));
 
     /* ═══════════════════════════════════════════
+       Sheet 5: 存储清单（已通过图片的存储路径）
+       ═══════════════════════════════════════════ */
+    const approvedImages = await prisma.image.findMany({
+      where: { status: "APPROVED" },
+      select: {
+        id: true,
+        filename: true,
+        storedPath: true,
+        storedLocalPath: true,
+        fileSize: true,
+        mimeType: true,
+        createdAt: true,
+        spu: {
+          select: {
+            name: true,
+            category: true,
+            countryStyle: true,
+            shopName: true,
+          },
+        },
+        uploadedBy: { select: { name: true, department: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const storageRows = approvedImages.map((img) => ({
+      "文件名": img.filename,
+      "文件大小(KB)": (img.fileSize / 1024).toFixed(1),
+      "文件类型": img.mimeType,
+      "SPU名称": img.spu.name,
+      "品类": img.spu.category,
+      "国家风格": img.spu.countryStyle,
+      "店铺": img.spu.shopName,
+      "上传者": img.uploadedBy.name,
+      "上传部门": img.uploadedBy.department,
+      "上传存储路径": img.storedPath,
+      "归档存储路径": img.storedLocalPath || "（未归档）",
+      "通过时间": img.createdAt.toISOString().slice(0, 19).replace("T", " "),
+    }));
+
+    /* ═══════════════════════════════════════════
        生成 Excel
        ═══════════════════════════════════════════ */
     const wb = XLSX.utils.book_new();
@@ -215,6 +256,9 @@ export async function GET(req: NextRequest) {
 
     const ws4 = XLSX.utils.json_to_sheet(archiveRows);
     XLSX.utils.book_append_sheet(wb, ws4, "归档明细");
+
+    const ws5 = XLSX.utils.json_to_sheet(storageRows);
+    XLSX.utils.book_append_sheet(wb, ws5, "存储清单");
 
     // 调整列宽（取各列最大字符宽度）
     const autoWidth = (ws: XLSX.WorkSheet) => {
@@ -241,6 +285,7 @@ export async function GET(req: NextRequest) {
     autoWidth(ws2);
     autoWidth(ws3);
     autoWidth(ws4);
+    autoWidth(ws5);
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 

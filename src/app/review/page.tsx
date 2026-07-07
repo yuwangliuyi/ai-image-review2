@@ -725,7 +725,7 @@ export default function ReviewPage() {
             </button>
           </div>
           <img
-            src={currentImage.storedPath}
+            src={`/api/images/${currentImage.id}/file`}
             alt={currentImage.filename}
             className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}
