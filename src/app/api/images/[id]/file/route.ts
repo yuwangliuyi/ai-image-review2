@@ -44,10 +44,6 @@ export async function GET(
       return NextResponse.json({ error: "图片不存在" }, { status: 404 });
     }
 
-    if (image.status !== "APPROVED") {
-      return NextResponse.json({ error: "图片未通过审核，无法下载" }, { status: 403 });
-    }
-
     let filePath: string;
     try {
       filePath = await resolveFilePath(image);
