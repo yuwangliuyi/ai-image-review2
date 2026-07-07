@@ -56,18 +56,20 @@ export async function POST(req: NextRequest) {
       const images = latestApproved?.batchId
         ? await prisma.image.findMany({
             where: { spuId: archive.spuId, status: "APPROVED", batchId: latestApproved.batchId },
-            select: { storedPath: true, filename: true },
+            select: { storedPath: true, storedLocalPath: true, filename: true },
           })
         : await prisma.image.findMany({
             where: { spuId: archive.spuId, status: "APPROVED" },
-            select: { storedPath: true, filename: true },
+            select: { storedPath: true, storedLocalPath: true, filename: true },
           });
 
       // ZIP 内按「品类/SPU名称/」组织
       const folder = [archive.category, archive.spuName].filter(Boolean).join("/");
 
       for (const img of images) {
-        const srcPath = path.join(publicDir, img.storedPath);
+        const srcPath = img.storedLocalPath
+          ? img.storedLocalPath
+          : path.join(publicDir, img.storedPath);
         try {
           await stat(srcPath);
           const zipPath = `${folder}/${img.filename}`;

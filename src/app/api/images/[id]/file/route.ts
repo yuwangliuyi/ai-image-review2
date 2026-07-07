@@ -7,6 +7,24 @@ import { getSession } from "@/lib/auth-utils";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
+/** 解析图片的实际文件路径：优先持久化存储 storedLocalPath，回退到 public/uploads */
+async function resolveFilePath(image: { storedLocalPath: string | null; storedPath: string }) {
+  // 优先使用持久化存储的绝对路径
+  if (image.storedLocalPath) {
+    try {
+      await stat(image.storedLocalPath);
+      return image.storedLocalPath;
+    } catch {
+      // 持久化文件不存在，继续回退
+    }
+  }
+  // 回退到 public/uploads
+  const filename = path.basename(image.storedPath);
+  const filePath = path.join(UPLOAD_DIR, filename);
+  await stat(filePath); // 如果也不存在，抛出异常
+  return filePath;
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,18 +36,17 @@ export async function GET(
     }
 
     const { id } = await params;
-    const image = await prisma.image.findUnique({ where: { id } });
+    const image = await prisma.image.findUnique({
+      where: { id },
+      select: { storedPath: true, storedLocalPath: true, mimeType: true, filename: true },
+    });
     if (!image) {
       return NextResponse.json({ error: "图片不存在" }, { status: 404 });
     }
 
-    // 从 storedPath 提取文件名（/uploads/xxx.jpg → xxx.jpg）
-    const filename = path.basename(image.storedPath);
-    const filePath = path.join(UPLOAD_DIR, filename);
-
-    // 检查文件是否存在
+    let filePath: string;
     try {
-      await stat(filePath);
+      filePath = await resolveFilePath(image);
     } catch {
       return NextResponse.json({ error: "图片文件不存在" }, { status: 404 });
     }

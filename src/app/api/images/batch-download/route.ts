@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
         id: true,
         filename: true,
         storedPath: true,
+        storedLocalPath: true,
         spu: { select: { name: true, category: true } },
       },
     });
@@ -48,7 +49,9 @@ export async function POST(req: NextRequest) {
     const usedNames = new Map<string, number>(); // 处理同名文件
 
     for (const img of images) {
-      const srcPath = path.join(publicDir, img.storedPath);
+      const srcPath = img.storedLocalPath
+        ? img.storedLocalPath
+        : path.join(publicDir, img.storedPath);
       try {
         await stat(srcPath);
 

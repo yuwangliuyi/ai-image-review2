@@ -38,11 +38,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const images = targetBatchId
       ? await prisma.image.findMany({
           where: { spuId: archive.spuId, status: "APPROVED", batchId: targetBatchId },
-          select: { storedPath: true, filename: true },
+          select: { storedPath: true, storedLocalPath: true, filename: true },
         })
       : await prisma.image.findMany({
           where: { spuId: archive.spuId, status: "APPROVED" },
-          select: { storedPath: true, filename: true },
+          select: { storedPath: true, storedLocalPath: true, filename: true },
         });
 
     if (images.length === 0) {
@@ -58,8 +58,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .filter(Boolean)
       .join("/");
 
-    const publicDir = path.join(process.cwd(), "public");
-
     // 使用 archiver 流式生成 ZIP（正确处理 UTF-8 extra field）
     const archive_stream = archiver("zip", {
       zlib: { level: 6 },
@@ -73,9 +71,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     archive_stream.pipe(pt);
 
-    // 逐个添加文件
+    // 逐个添加文件：优先使用 storedLocalPath，回退到 public
+    const publicDir = path.join(process.cwd(), "public");
+
     for (const img of images) {
-      const srcPath = path.join(publicDir, img.storedPath);
+      const srcPath = img.storedLocalPath
+        ? img.storedLocalPath
+        : path.join(publicDir, img.storedPath);
       try {
         await stat(srcPath);
         // 在 ZIP 中的路径：品类/SPU名称/文件名
