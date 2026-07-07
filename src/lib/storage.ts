@@ -2,7 +2,7 @@
 // 将 APPROVED 图片按规范路径复制到本地储存目录
 // 路径规范：{root}/{品类}/{国家款式名称}/{SPU名称}/{店铺}/{原始文件名}
 
-import { mkdir, copyFile, access } from "fs/promises";
+import { mkdir, rename, access } from "fs/promises";
 import path from "path";
 import { constants } from "fs";
 
@@ -62,9 +62,9 @@ export async function saveApprovedImage(params: {
     return null;
   }
 
-  // 创建目录并复制
+  // 创建目录并移动（不复制，避免重复储存）
   await mkdir(dirPath, { recursive: true });
-  await copyFile(sourcePath, destPath);
+  await rename(sourcePath, destPath);
 
   console.log(`[storage] 已储存: ${destPath}`);
   return destPath;
