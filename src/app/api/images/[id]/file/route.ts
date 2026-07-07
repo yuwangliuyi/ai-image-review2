@@ -38,10 +38,14 @@ export async function GET(
     const { id } = await params;
     const image = await prisma.image.findUnique({
       where: { id },
-      select: { storedPath: true, storedLocalPath: true, mimeType: true, filename: true },
+      select: { storedPath: true, storedLocalPath: true, mimeType: true, filename: true, status: true },
     });
     if (!image) {
       return NextResponse.json({ error: "图片不存在" }, { status: 404 });
+    }
+
+    if (image.status !== "APPROVED") {
+      return NextResponse.json({ error: "图片未通过审核，无法下载" }, { status: 403 });
     }
 
     let filePath: string;

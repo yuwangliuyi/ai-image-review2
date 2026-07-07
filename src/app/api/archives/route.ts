@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
         include: {
           spu: {
             select: {
-                                images: { select: { id: true, storedPath: true, filename: true, fileSize: true } },
+              images: {
+                where: { status: "APPROVED" },
+                select: { id: true, storedPath: true, filename: true, fileSize: true },
+              },
             },
           },
         },
