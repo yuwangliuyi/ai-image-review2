@@ -17,6 +17,7 @@ import {
   Hash,
   Store,
   Calendar,
+  Search,
 } from 'lucide-react';
 import { CATEGORIES } from '@/lib/categories';
 import { STORES } from '@/lib/stores';
@@ -112,6 +113,7 @@ export default function UploadPage() {
 
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchSpus = useCallback(async () => {
     setLoading(true);
@@ -242,6 +244,18 @@ export default function UploadPage() {
     fetchImages(selectedSpu.id);
     fetchSpus();
   };
+
+  /* 搜索过滤 */
+  const filteredSpus = searchQuery.trim()
+    ? spus.filter((spu) => {
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          spu.name.toLowerCase().includes(q) ||
+          spu.category.toLowerCase().includes(q) ||
+          (spu.shopName && spu.shopName.toLowerCase().includes(q))
+        );
+      })
+    : spus;
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -470,7 +484,7 @@ export default function UploadPage() {
             图片上传
           </h2>
           <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>
-            {spus.length} 个 SPU 任务
+            {spus.length} 个 SPU 任务{searchQuery.trim() && filteredSpus.length !== spus.length ? ` · 匹配 ${filteredSpus.length} 个` : ''}
           </p>
         </div>
         <button
@@ -637,6 +651,28 @@ export default function UploadPage() {
         </div>
       )}
 
+      {/* 搜索框 */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="搜索 SPU 名称、品类或店铺…"
+          className="w-full pl-10 pr-4 py-2.5 rounded-[var(--radius-input)] text-sm transition-all duration-150 focus:ring-2 focus:ring-[oklch(58%_0.18_255/0.2)]"
+          style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.fg }}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[oklch(0_0_0/0.04)]"
+            style={{ color: C.muted }}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* SPU Cards Grid */}
       {loading ? (
         <SpuSkeleton />
@@ -653,9 +689,22 @@ export default function UploadPage() {
             点击上方「创建SPU任务」开始
           </p>
         </div>
+      ) : filteredSpus.length === 0 ? (
+        <div
+          className="text-center py-20 rounded-[var(--radius-card)]"
+          style={{ background: C.surface, border: `1px solid ${C.border}` }}
+        >
+          <div className="p-4 rounded-full mx-auto mb-4 w-fit" style={{ background: C.bg }}>
+            <Search className="w-8 h-8" style={{ color: C.muted, opacity: 0.5 }} />
+          </div>
+          <p className="font-medium" style={{ color: C.muted }}>未找到匹配的 SPU</p>
+          <p className="text-sm mt-1" style={{ color: C.muted, opacity: 0.6 }}>
+            试试其他关键词
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {spus.map((spu) => (
+          {filteredSpus.map((spu) => (
             <div
               key={spu.id}
               onClick={() => selectSpu(spu)}
@@ -675,8 +724,8 @@ export default function UploadPage() {
                 e.currentTarget.style.borderColor = C.border;
               }}
             >
-              {/* 图片区域 16:10 */}
-              <div className="relative h-40 overflow-hidden" style={{ background: C.bg }}>
+              {/* 图片区域 1:1 */}
+              <div className="relative aspect-square overflow-hidden" style={{ background: C.bg }}>
                 {spu.images[0] ? (
                   <img
                     src={`/api/images/${spu.images[0].id}/file`}
@@ -785,7 +834,7 @@ function SpuSkeleton() {
           className="rounded-[var(--radius-card)] overflow-hidden animate-pulse"
           style={{ background: C.surface, border: `1px solid ${C.border}` }}
         >
-          <div className="h-40" style={{ background: C.bg }} />
+          <div className="aspect-square" style={{ background: C.bg }} />
           <div className="p-4 space-y-3">
             <div className="flex gap-2">
               <div className="h-5 w-16 rounded-full" style={{ background: C.border }} />
