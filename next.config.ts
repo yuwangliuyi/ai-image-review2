@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  api: {
+    bodyParser: {
+      sizeLimit: '100mb',
+    },
+  },
 };
 
 export default nextConfig;

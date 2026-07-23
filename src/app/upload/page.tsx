@@ -231,7 +231,7 @@ export default function UploadPage() {
     onDrop,
     accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'] },
     multiple: true,
-    maxFiles: 20,
+    maxFiles: 50,
   });
 
   const handleDelete = async (imageId: string) => {
