@@ -118,7 +118,7 @@ export default function UploadPage() {
   const fetchSpus = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/spus?limit=50');
+      const res = await fetch('/api/spus?limit=10000');
       const data = await res.json();
       if (data.spus) setSpus(data.spus);
     } catch (err) {
