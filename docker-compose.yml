@@ -8,8 +8,14 @@ services:
       - /data/ai-image-review/data:/app/data
       - /data/ai-image-review/uploads:/app/public/uploads
       - /data/ai-image-review/approved-images:/app/approved-images
+      - /data/ai-image-review/logs:/app/logs
     environment:
       - DATABASE_URL=file:/app/data/dev.db
       - NEXTAUTH_SECRET=9fd7AqX#kL81sP2vM8xNw4Rr6@tHyZbQ
       - NEXTAUTH_URL=http://192.168.110.90:8001
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

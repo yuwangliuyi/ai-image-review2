@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await ensureDir(UPLOAD_DIR);
     const userId = (session.user as any).id;
     const batchId = uuidv4(); // 每次上传生成一个批次ID
-    const uploadedImages = [];
+    const imageData: any[] = [];
 
     for (const file of files) {
       // Validate file type
@@ -64,21 +64,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const buffer = Buffer.from(await file.arrayBuffer());
       await writeFile(filePath, buffer);
 
-      const image = await prisma.image.create({
-        data: {
-          filename: file.name,
-          storedPath: `/uploads/${uniqueName}`,
-          thumbnailPath: `/uploads/${uniqueName}`,
-          fileSize: buffer.length,
-          mimeType: file.type || "image/png",
-          spuId,
-          uploadedById: userId,
-          batchId,
-        },
+      imageData.push({
+        filename: file.name,
+        storedPath: `/uploads/${uniqueName}`,
+        thumbnailPath: `/uploads/${uniqueName}`,
+        fileSize: buffer.length,
+        mimeType: file.type || "image/png",
+        spuId,
+        uploadedById: userId,
+        batchId,
       });
-
-      uploadedImages.push(image);
     }
+
+    // 批量写入数据库（单事务）：避免逐条插入反复抢占 SQLite 写锁导致其他请求超时（P1008）
+    const uploadedImages = await prisma.$transaction(
+      imageData.map((data) => prisma.image.create({ data }))
+    );
 
     // Reset SPU status to PENDING if new images added
     if (spu.status !== "PENDING") {

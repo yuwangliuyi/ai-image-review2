@@ -2,7 +2,7 @@
 // 将 APPROVED 图片按规范路径复制到本地储存目录
 // 路径规范：{root}/{品类}/{国家款式名称}/{SPU名称}/{店铺}/{原始文件名}
 
-import { mkdir, rename, access } from "fs/promises";
+import { mkdir, rename, access, copyFile, unlink } from "fs/promises";
 import path from "path";
 import { constants } from "fs";
 
@@ -64,7 +64,17 @@ export async function saveApprovedImage(params: {
 
   // 创建目录并移动（不复制，避免重复储存）
   await mkdir(dirPath, { recursive: true });
-  await rename(sourcePath, destPath);
+  try {
+    // 优先移动（同设备最快）；跨挂载点（Docker 多 volume 挂载）时回退为「复制 + 删除」
+    await rename(sourcePath, destPath);
+  } catch (err: any) {
+    if (err?.code === "EXDEV") {
+      await copyFile(sourcePath, destPath);
+      await unlink(sourcePath);
+    } else {
+      throw err;
+    }
+  }
 
   console.log(`[storage] 已储存: ${destPath}`);
   return destPath;

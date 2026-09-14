@@ -8,4 +8,6 @@ echo "初始化账号（upsert 幂等，已有用户跳过）..."
 cd /app && node prisma/seed.js
 
 echo "启动 Next.js (端口 8001)..."
-node server.js
+mkdir -p /app/logs
+# 日志同时输出到控制台（docker logs 可看）和宿主机挂载的文件（/data/ai-image-review/logs/app.log）
+node server.js 2>&1 | tee -a /app/logs/app.log
