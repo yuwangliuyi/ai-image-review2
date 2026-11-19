@@ -1,6 +1,6 @@
 'use client';
 
-import { signOut, useSession } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -16,6 +16,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
 
 const mainNav = [
   { href: '/dashboard', label: '仪表盘', icon: LayoutDashboard },
@@ -30,14 +31,14 @@ const systemNav = [
 ];
 
 export default function AppLayout({ children, title }: { children: React.ReactNode; title?: string }) {
-  const { data: session } = useSession();
   const pathname = usePathname();
+  const { phase, user: sessionUser, api, logout } = useSsoApp();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const userRole = (session?.user as any)?.role || 'UPLOADER';
-  const userName = session?.user?.name || '';
+  const userRole = sessionUser?.role || 'UPLOADER';
+  const userName = sessionUser?.name || '';
   const isReviewer = userRole === 'REVIEWER';
 
   // 仅凭姓名的最后一个字做头像回退（如"何扬帆" → "帆"）
@@ -45,15 +46,44 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
 
   // 获取待审核数 + 未读通知数
   useEffect(() => {
-    fetch('/api/stats')
-      .then((r) => r.json())
+    api<{ pendingCount?: number }>('/api/stats')
       .then((d) => setPendingCount(d.pendingCount || 0))
       .catch(() => {});
-    fetch('/api/notifications?unread=true&limit=1')
-      .then((r) => r.json())
+    api<{ unreadCount?: number }>('/api/notifications?unread=true&limit=1')
       .then((d) => setUnreadCount(d.unreadCount || 0))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // SSO 模式统一退出：撤销所有设备并回中心登录页；准备阶段保留原项目退出
+  const handleLogout = async () => {
+    if (phase === 'sso') {
+      await logout();
+    } else {
+      await signOut({ callbackUrl: '/login?logout=1' });
+    }
+  };
+
+  // 待授权状态：身份/退出之外的界面统一替换为等待页（业务 API 亦全部拒绝）
+  if (sessionUser?.isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--color-bg)' }}>
+        <div className="w-full max-w-md p-8 rounded-xl text-center" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+          <h1 className="text-lg font-semibold" style={{ color: 'var(--color-fg)' }}>等待管理员分配权限</h1>
+          <p className="mt-2 text-sm" style={{ color: 'var(--color-muted)' }}>
+            你的公司账号已登录（{userName}），尚未获得本应用的业务权限。请联系应用管理员分配角色后刷新页面。
+          </p>
+          <button
+            onClick={handleLogout}
+            className="mt-6 px-5 py-2.5 rounded-lg text-sm font-medium"
+            style={{ border: '1px solid var(--color-border)', color: 'var(--color-muted)' }}
+          >
+            退出登录
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isActive = (href: string) => pathname.startsWith(href);
 
@@ -123,7 +153,7 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
 
       <div className="px-3 pt-5">
         <button
-                    onClick={() => signOut({ callbackUrl: '/login?logout=1' })}
+          onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 w-full rounded-[var(--radius-nav)] text-sm font-medium transition-[background,color] duration-150"
           style={{ color: 'var(--color-muted)' }}
           onMouseEnter={(e) => {
@@ -218,6 +248,9 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
               </div>
               <span className="text-sm font-medium" style={{ color: 'var(--color-fg)' }}>
                 {userName}
+                {sessionUser?.isGlobalSuperAdmin && (
+                  <span className="ml-2 text-xs" style={{ color: 'var(--color-muted)' }}>SSO 全局超管 · 自动继承</span>
+                )}
               </span>
             </div>
           </div>

@@ -3,21 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "next dev -p 3003",
     "build": "next build",
-    "start": "next start -p 3002",
+    "start": "next start -p 3003",
     "lint": "eslint",
-    "seed": "node prisma/seed.js",
-    "db:migrate": "npx prisma migrate dev",
-    "db:push": "npx prisma db push",
-    "db:setup": "npx prisma db push && node prisma/seed.js",
-    "db:studio": "npx prisma studio"
-  },
-  "prisma": {
-    "seed": "node prisma/seed.js"
+    "db:migrate": "python3 scripts/migrate-database.py",
+    "db:studio": "npx prisma studio",
+    "sso:check-guard": "node scripts/check-sso-guard.mjs",
+    "sso:test-logic": "rm -rf .test-dist && tsc tests/sso-logic/*.ts src/lib/sso/frontend/mapping.ts src/lib/sso/frontend/sign-out.ts src/lib/sso/frontend/startup.ts src/lib/sso/frontend/transport.ts src/lib/sso/frontend/types.ts --outDir .test-dist --module commonjs --target es2022 --moduleResolution node --esModuleInterop --skipLibCheck --strict false && node --test .test-dist/tests/sso-logic/*.test.js",
+    "sso:test-api": "node --test --test-concurrency=1 tests/sso-api/*.test.mjs",
+    "sso:test-ui": "node --test --test-concurrency=1 tests/sso-ui/*.test.mjs",
+    "sso:recovery": "node scripts/sso-recovery.mjs",
+    "sso:migrate-identities": "node scripts/sso-migrate-identities.mjs",
+    "sso:typecheck": "tsc --noEmit -p tsconfig.sso.json",
+    "db:check": "node scripts/check-database.mjs",
+    "test:maintenance": "python3 -m unittest discover -s tests/maintenance -v"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^6.19.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/uuid": "^10.0.0",
     "archiver": "^8.0.0",
@@ -25,15 +28,15 @@
     "dotenv": "^17.4.2",
     "jszip": "^3.10.1",
     "lucide-react": "^1.21.0",
-    "next": "16.2.9",
-    "next-auth": "^4.24.14",
-    "prisma": "^5.22.0",
+    "next": "16.4.6",
+    "next-auth": "4.24.15",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-dropzone": "^15.0.0",
+    "react-is": "19.2.4",
     "recharts": "^3.8.1",
     "uuid": "^14.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -42,7 +45,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.4.6",
+    "jsdom": "26.1.0",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

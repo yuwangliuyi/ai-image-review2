@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 佳选 SSO 接入包为官方参考材料，不属于本项目源码
+    "jx-sso-integration/**",
+    // SSO 合同测试使用模拟对象，允许 any
+    "tests/**",
   ]),
 ]);
 

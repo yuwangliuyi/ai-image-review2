@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import type { Prisma } from "@prisma/client";
 
 /**
  * 创建通知。返回创建的通知对象，失败返回 null。
@@ -8,9 +9,9 @@ export async function createNotification(params: {
   type: string;
   message: string;
   relatedId?: string;
-}) {
+}, db: Prisma.TransactionClient = prisma) {
   try {
-    return await prisma.notification.create({
+    return await db.notification.create({
       data: {
         userId: params.userId,
         type: params.type,
@@ -32,7 +33,8 @@ export async function notifySpuStatusChange(
   spuName: string,
   spuId: string,
   newStatus: string,
-  details?: string
+  details?: string,
+  db: Prisma.TransactionClient = prisma
 ) {
   const label = newStatus === "APPROVED" ? "已全部通过 ✓" : newStatus === "REJECTED" ? "有图片被驳回 ✗" : "审核中";
   let message = `SPU「${spuName}」审核状态更新：${label}`;
@@ -43,7 +45,7 @@ export async function notifySpuStatusChange(
     type: `SPU_${newStatus}`,
     message,
     relatedId: spuId,
-  });
+  }, db);
 }
 
 /**
@@ -54,7 +56,8 @@ export async function notifyImageRejected(
   imageFilename: string,
   spuName: string,
   spuId: string,
-  comment?: string
+  comment?: string,
+  db: Prisma.TransactionClient = prisma
 ) {
   let message = `图片「${imageFilename}」在 SPU「${spuName}」中被驳回`;
   if (comment) message += `，原因："${comment}"`;
@@ -64,5 +67,5 @@ export async function notifyImageRejected(
     type: "IMAGE_REJECTED",
     message,
     relatedId: spuId,
-  });
+  }, db);
 }

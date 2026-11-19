@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { stat } from "fs/promises";
 import path from "path";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
@@ -26,14 +26,11 @@ async function resolveFilePath(image: { storedLocalPath: string | null; storedPa
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma) => {
 
     const { id } = await params;
     const image = await prisma.image.findUnique({
@@ -59,11 +56,11 @@ export async function GET(
       headers: {
         "Content-Type": mimeType,
         "Content-Length": String(buffer.length),
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "private, no-store",
       },
     });
+    });
   } catch (error) {
-    console.error("Image file serve error:", error);
-    return NextResponse.json({ error: "获取图片失败" }, { status: 500 });
+    return handleApiError(error, "获取图片失败");
   }
 }

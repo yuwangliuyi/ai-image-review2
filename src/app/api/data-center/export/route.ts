@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
+import { ssoSettings } from "@/lib/sso/identity";
 import * as XLSX from "xlsx";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    const user = session?.user as any;
-    if (!user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const user = actor.user;
     // 仅管理员和审核员可下载
     const isReviewer = user.role === "REVIEWER";
     if (user.role !== "ADMIN" && !isReviewer) {
@@ -24,6 +22,7 @@ export async function GET(req: NextRequest) {
         id: true,
         name: true,
         department: true,
+        rosterDepartment: true, rosterSource: true, rosterName: true,
         email: true,
         role: true,
         createdAt: true,
@@ -64,8 +63,8 @@ export async function GET(req: NextRequest) {
     const userRows = users.map((u) => {
       const img = userImageMap[u.id];
       return {
-        "姓名": u.name,
-        "部门": u.department,
+        "姓名": (actor.authMethod === "sso" && u.rosterSource === ssoSettings().ssoApiUrl ? u.rosterName : null) ?? u.name,
+        "部门": (actor.authMethod === "sso" && u.rosterSource === ssoSettings().ssoApiUrl ? u.rosterDepartment : null) ?? u.department,
         "角色": roleLabel[u.role] || u.role,
         "邮箱": u.email,
         "注册时间": u.createdAt.toISOString().slice(0, 19).replace("T", " "),
@@ -127,7 +126,7 @@ export async function GET(req: NextRequest) {
         "店铺名称": s.shopName,
         "状态": statusLabel[s.status] || s.status,
         "上传者": s.uploadedBy.name,
-        "上传部门": s.uploadedBy.department,
+        "上传部门": s.department,
         "审核员": s.assignedReviewer?.name || "",
         "创建时间": s.createdAt.toISOString().slice(0, 19).replace("T", " "),
         "图片总数": img.total,
@@ -170,11 +169,11 @@ export async function GET(req: NextRequest) {
         "所属SPU": img.spu.name,
         "品类": img.spu.category,
         "上传者": img.uploadedBy.name,
-        "上传部门": img.uploadedBy.department,
+        "上传部门": img.uploadDepartment ?? img.uploadedBy.department,
         "批次号": img.batchId || "",
         "审核状态": imageStatusLabel[img.status] || img.status,
         "审核人": lastReview?.reviewer.name || "",
-        "审核人部门": lastReview?.reviewer.department || "",
+        "审核人部门": lastReview?.reviewDepartment ?? lastReview?.reviewer.department ?? "",
         "审核意见": lastReview?.comment || "",
         "审核时间": lastReview ? lastReview.createdAt.toISOString().slice(0, 19).replace("T", " ") : "",
         "上传时间": img.createdAt.toISOString().slice(0, 19).replace("T", " "),
@@ -207,6 +206,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         filename: true,
+        uploadDepartment: true,
         storedPath: true,
         storedLocalPath: true,
         fileSize: true,
@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
       "国家风格": img.spu.countryStyle,
       "店铺": img.spu.shopName,
       "上传者": img.uploadedBy.name,
-      "上传部门": img.uploadedBy.department,
+      "上传部门": img.uploadDepartment ?? img.uploadedBy.department,
       "上传存储路径": img.storedPath,
       "归档存储路径": img.storedLocalPath || "（未归档）",
       "通过时间": img.createdAt.toISOString().slice(0, 19).replace("T", " "),
@@ -298,8 +298,8 @@ export async function GET(req: NextRequest) {
         "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`,
       },
     });
+    });
   } catch (error) {
-    console.error("Export error:", error);
-    return NextResponse.json({ error: "导出失败" }, { status: 500 });
+    return handleApiError(error, "导出失败");
   }
 }

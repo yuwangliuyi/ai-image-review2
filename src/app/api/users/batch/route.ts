@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction, sameOrigin } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
+import { assertUserMutationAllowed, getState } from "@/lib/sso/store";
 
 /** 生成随机密码：8位，包含大小写字母和数字 */
 function generatePassword(): string {
@@ -15,14 +16,14 @@ function generatePassword(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    const user = session?.user as any;
-    if (!user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    sameOrigin(req);
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const user = actor.user;
     if (user.role !== "ADMIN" && user.role !== "REVIEWER") {
       return NextResponse.json({ error: "仅管理员或审核员可批量创建账号" }, { status: 403 });
     }
+    // 接入阶段管控：待完成冻结；SSO_ONLY 关闭产生未关联密码账号的旧入口
+    assertUserMutationAllowed(await getState(prisma), { creation: true });
 
     const { users } = await req.json();
 
@@ -78,8 +79,8 @@ export async function POST(req: NextRequest) {
       results,
       summary: { total: users.length, created: createdCount, skipped: skippedCount, error: errorCount },
     });
+    });
   } catch (error) {
-    console.error("Batch user creation error:", error);
-    return NextResponse.json({ error: "批量创建失败" }, { status: 500 });
+    return handleApiError(error, "批量创建失败");
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import AuthLayout from '@/components/AuthLayout';
 import {
   TrendingUp,
@@ -25,6 +25,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 /* ─── 直接用 oklch 值 — SVG 里 CSS 变量不解析 ─── */
 const COLORS = {
@@ -64,31 +65,54 @@ const statusBadge: Record<string, { bg: string; fg: string; label: string }> = {
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [dimension, setDimension] = useState<'overall' | 'department' | 'personal'>('overall');
   const [selectedDepartment, setSelectedDepartment] = useState('');
 
-  const fetchStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('dimension', dimension);
-      if (dimension === 'department' && selectedDepartment) {
-        params.set('department', selectedDepartment);
-      }
-      const res = await fetch(`/api/stats?${params}`);
-      const data = await res.json();
-      setStats(data);
-    } catch (e) {
-      console.error(e);
-    }
-    setLoading(false);
-  }, [dimension, selectedDepartment]);
-
   useEffect(() => {
-    fetchStats();
-    const i = setInterval(fetchStats, 30000);
-    return () => clearInterval(i);
-  }, [fetchStats]);
+    const controller = new AbortController();
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setStats(null);
+    setLoading(true);
+    setError(false);
+
+    async function fetchStats() {
+      try {
+        const params = new URLSearchParams();
+        params.set('dimension', dimension);
+        if (dimension === 'department' && selectedDepartment) {
+          params.set('department', selectedDepartment);
+        }
+        const res = await ssoFetch(`/api/stats?${params}`, { signal: controller.signal });
+        if (!res.ok) throw new Error('加载统计数据失败');
+        const data = await res.json();
+        if (!Number.isFinite(data?.totalSpus) || !Number.isFinite(data?.totalImages)) {
+          throw new Error('统计数据格式不正确');
+        }
+        if (!disposed) {
+          setStats(data);
+          setError(false);
+        }
+      } catch {
+        if (!disposed) setError(true);
+      } finally {
+        if (!disposed) {
+          setLoading(false);
+          // Schedule after completion so a slow request cannot accumulate more polls.
+          timer = setTimeout(fetchStats, 30000);
+        }
+      }
+    }
+
+    void fetchStats();
+    return () => {
+      disposed = true;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [dimension, selectedDepartment, refreshVersion]);
 
   /* ─── Loading 骨架 ─── */
   if (loading) {
@@ -118,7 +142,12 @@ export default function DashboardPage() {
       <AuthLayout title="仪表盘">
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Package className="w-12 h-12" style={{ color: COLORS.muted, opacity: 0.4 }} />
-          <p style={{ color: COLORS.muted }}>加载统计数据失败</p>
+          <p role="alert" style={{ color: COLORS.muted }}>加载统计数据失败，请稍后重试。</p>
+          <button
+            onClick={() => setRefreshVersion((value) => value + 1)}
+            className="px-4 py-2 text-sm rounded-[var(--radius-nav)] border"
+            style={{ borderColor: COLORS.border, color: COLORS.accent }}
+          >重新加载</button>
         </div>
       </AuthLayout>
     );
@@ -180,6 +209,13 @@ export default function DashboardPage() {
 
   return (
     <AuthLayout title="仪表盘">
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 mb-5 p-3 text-sm rounded-[var(--radius-card)]"
+          style={{ background: COLORS.warnLight, color: COLORS.fg }}>
+          <span>刷新统计数据失败，当前显示上次成功加载的数据。</span>
+          <button onClick={() => setRefreshVersion((value) => value + 1)} className="shrink-0 underline">重新加载</button>
+        </div>
+      )}
       {/* ===== 维度切换器 ===== */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div

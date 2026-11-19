@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 import { notifySpuStatusChange } from "@/lib/notifications";
 import { saveApprovedImage } from "@/lib/storage";
 import path from "path";
@@ -8,10 +8,8 @@ import path from "path";
 // POST - 批量审核 SPU 下所有待审核的图片
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const userRole = (session.user as any).role;
     if (userRole !== "ADMIN" && userRole !== "REVIEWER") {
@@ -56,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // 批量更新所有待审核图片 + 创建审核记录
-    await prisma.$transaction([
+    await Promise.all([
       prisma.image.updateMany({
         where: { spuId, status: "PENDING" },
         data: { status: action },
@@ -66,6 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           data: {
             imageId: img.id,
             reviewerId: userId,
+            reviewDepartment: actor.user.department,
             action,
             comment: comment || null,
           },
@@ -120,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const detail = spuStatus === "APPROVED"
         ? `共 ${allImages.length} 张图片全部通过`
         : `${allImages.filter(i => i.status === "REJECTED").length} 张被驳回`;
-      await notifySpuStatusChange(spu.uploadedById, spu.name, spuId, spuStatus, detail);
+      await notifySpuStatusChange(spu.uploadedById, spu.name, spuId, spuStatus, detail, prisma);
     }
 
     // 只要有图片通过就归档（仅计数通过的）；全部驳回则删除归档
@@ -163,8 +162,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       count: spu.images.length,
       spuStatus,
     });
+    });
   } catch (error) {
-    console.error("Batch review error:", error);
-    return NextResponse.json({ error: "批量审核失败" }, { status: 500 });
+    return handleApiError(error, "批量审核失败");
   }
 }

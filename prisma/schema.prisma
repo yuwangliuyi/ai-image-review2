@@ -14,14 +14,63 @@ model User {
   department String
   password   String
   role       String   @default("UPLOADER")
+  // 旧环境数字关联保留用于审计；登录使用 SsoIdentityMapping，绝不跨环境直接匹配此字段
+  ssoUserId  Int?     @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  rosterStatus     String?
+  rosterName       String?
+  rosterDepartment String?
+  rosterSource     String?
+  rosterCheckedAt  DateTime?
+  ssoIdentities   SsoIdentityMapping[]
   uploadedSpus    Spu[]          @relation("SpuUploader")
   assignedSpus    Spu[]          @relation("SpuReviewer")
   uploadedImages  Image[]        @relation("ImageUploader")
   reviews        ReviewRecord[]
   notifications  Notification[]
+}
+
+// guided 接入状态机（单行 id=1）。分类一经建立不随重启或账号数量变化重判。
+model SsoSetupState {
+  id                 Int      @id @default(1)
+  classification     String // GREENFIELD | LEGACY
+  phase              String // MAPPING_REQUIRED | ADMIN_VERIFICATION_REQUIRED | SSO_ONLY
+  revision           Int      @default(0)
+  operatorLocalId    String?
+  connectedSsoId     Int?
+  snapshotJson       String?
+  mappedFingerprint  String?
+  reviewFingerprint  String?
+  mappedUsersJson    String?
+  adminRevision      Int?
+  adminExpires       Float?
+  maintenanceLocked  Boolean  @default(false)
+  rollbackAvailable  Boolean  @default(false)
+  sourceSsoApiUrl     String?
+  identitiesReady    Boolean  @default(false)
+  identitySnapshotJson String?
+  mappedIdentityFingerprint String?
+}
+
+// 部分草稿：独立存储未完成选择、来源和指纹，不提前写真实映射
+model SsoSetupDraft {
+  localId            String  @id
+  ssoId              Int?
+  selectionSource    String
+  accountFingerprint String
+  phoneFingerprint   String
+}
+
+model SsoSetupAudit {
+  id           Int      @id @default(autoincrement())
+  action       String
+  revision     Int
+  localActorId String?
+  ssoActorId   Int?
+  createdAt    DateTime @default(now())
+  detailsJson  String
 }
 
 model Notification {
@@ -67,6 +116,7 @@ model Image {
   uploadedById  String
   uploadedBy    User     @relation("ImageUploader", fields: [uploadedById], references: [id])
   batchId       String?
+  uploadDepartment String?
   storedLocalPath String?  // 审核通过后的结构化储存路径
   createdAt     DateTime @default(now())
 
@@ -78,6 +128,7 @@ model ReviewRecord {
   id         String   @id @default(uuid())
   imageId    String
   image      Image    @relation(fields: [imageId], references: [id])
+  reviewDepartment String?
   reviewerId String
   reviewer   User     @relation(fields: [reviewerId], references: [id])
   action     String
@@ -97,4 +148,17 @@ model Archive {
   department       String
   imageCount       Int
   archivedAt       DateTime @default(now())
+}
+
+// 跨环境使用钉钉企业/人员组合；无钉钉账号的数字身份仅对来源中心有效。
+model SsoIdentityMapping {
+  id        Int    @id @default(autoincrement())
+  kind      String // dingtalk | legacy
+  namespace String
+  subject   String
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, namespace, subject])
+  @@index([userId])
 }

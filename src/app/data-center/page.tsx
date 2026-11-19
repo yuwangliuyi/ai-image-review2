@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
 import AuthLayout from '@/components/AuthLayout';
 import {
   Package, Image, ClipboardList, Search, ChevronLeft, ChevronRight,
   Download, HardDrive, CheckSquare, Square, FolderDown, X, Loader2,
 } from 'lucide-react';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
 
 const TABS = [
   { key: 'spus', label: 'SPU 任务', icon: Package },
@@ -18,8 +19,7 @@ const TABS = [
 const PAGE_SIZE = 20;
 
 export default function DataCenterPage() {
-  const { data: session } = useSession();
-  const currentUser = session?.user as any;
+  const { user: currentUser } = useSsoApp();
   const canExport = currentUser?.role === 'ADMIN' || currentUser?.role === 'REVIEWER';
 
   const [tab, setTab] = useState('spus');
@@ -46,7 +46,7 @@ export default function DataCenterPage() {
     if (statusFilter !== 'ALL') params.set('status', statusFilter);
     if (tab === 'storage-inventory' && month) params.set('month', month);
 
-    fetch(`/api/data-center/${tab}?${params}`)
+    ssoFetch(`/api/data-center/${tab}?${params}`)
       .then((r) => r.json())
       .then((d) => {
         setData(d);
@@ -82,7 +82,7 @@ export default function DataCenterPage() {
     setImageProgress({ current: 0, total: selectedImages.size, label: '正在打包...' });
 
     try {
-      const res = await fetch('/api/images/batch-download', {
+      const res = await ssoFetch('/api/images/batch-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selectedImages) }),
@@ -140,7 +140,7 @@ export default function DataCenterPage() {
   const handleExport = async () => {
     setDownloading(true);
     try {
-      const res = await fetch('/api/data-center/export');
+      const res = await ssoFetch('/api/data-center/export');
       if (res.status === 403) {
         alert('无权限，仅管理员和审核员可导出数据');
         return;

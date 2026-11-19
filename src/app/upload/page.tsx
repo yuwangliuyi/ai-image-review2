@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import AuthLayout from '@/components/AuthLayout';
+import SsoImage from '@/components/SsoImage';
 import {
   Upload,
   Plus,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { CATEGORIES } from '@/lib/categories';
 import { STORES } from '@/lib/stores';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 interface SpuItem {
   id: string;
@@ -118,7 +120,7 @@ export default function UploadPage() {
   const fetchSpus = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/spus?limit=10000');
+      const res = await ssoFetch('/api/spus?limit=10000');
       const data = await res.json();
       if (data.spus) setSpus(data.spus);
     } catch (err) {
@@ -131,7 +133,7 @@ export default function UploadPage() {
 
   const fetchImages = async (spuId: string) => {
     setImagesLoading(true);
-    const res = await fetch(`/api/spus/${spuId}/upload`);
+    const res = await ssoFetch(`/api/spus/${spuId}/upload`);
     const data = await res.json();
     if (Array.isArray(data)) setImages(data);
     setImagesLoading(false);
@@ -180,7 +182,7 @@ export default function UploadPage() {
     if (!CATEGORIES.includes(category.trim())) { setMessage('无效的品类名称'); return; }
     if (shopName.trim() && !STORES.includes(shopName.trim())) { setMessage('无效的店铺名称，请从列表中选择'); return; }
     setCreating(true);
-    const res = await fetch('/api/spus', {
+    const res = await ssoFetch('/api/spus', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: spuName.trim(), category: category.trim(), countryStyle: countryStyle.trim(), shopName: shopName.trim() }),
@@ -212,7 +214,7 @@ export default function UploadPage() {
     const formData = new FormData();
     acceptedFiles.forEach((f) => formData.append('files', f));
     try {
-      const res = await fetch(`/api/spus/${selectedSpu.id}/upload`, { method: 'POST', body: formData });
+      const res = await ssoFetch(`/api/spus/${selectedSpu.id}/upload`, { method: 'POST', body: formData });
       if (res.ok) {
         setMessage(`已提交 ${acceptedFiles.length} 张图片`);
         fetchImages(selectedSpu.id);
@@ -236,7 +238,7 @@ export default function UploadPage() {
 
   const handleDelete = async (imageId: string) => {
     if (!selectedSpu || !confirm('确定删除？')) return;
-    await fetch(`/api/spus/${selectedSpu.id}/upload`, {
+    await ssoFetch(`/api/spus/${selectedSpu.id}/upload`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageId }),
@@ -426,22 +428,11 @@ export default function UploadPage() {
                 style={{ background: C.surface, border: `1px solid ${C.border}` }}
               >
                 <div className="aspect-square relative" style={{ background: C.bg }}>
-                  <img
+                  <SsoImage
                     src={`/api/images/${img.id}/file`}
                     alt={img.filename}
                     className="w-full h-full object-cover"
                     loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      const parent = (e.target as HTMLImageElement).parentElement;
-                      if (parent && !parent.querySelector('.fallback')) {
-                        const div = document.createElement('div');
-                        div.className = 'fallback absolute inset-0 flex items-center justify-center';
-                        div.style.background = C.bg;
-                        div.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(C.muted)}" stroke-width="1.5" opacity="0.3"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>`;
-                        parent.appendChild(div);
-                      }
-                    }}
                   />
                   {/* hover 删除按钮 */}
                   <button
@@ -727,14 +718,11 @@ export default function UploadPage() {
               {/* 图片区域 1:1 */}
               <div className="relative aspect-square overflow-hidden" style={{ background: C.bg }}>
                 {spu.images[0] ? (
-                  <img
+                  <SsoImage
                     src={`/api/images/${spu.images[0].id}/file`}
                     alt=""
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
                   />
                 ) : null}
                 {/* 没有图时的占位 */}

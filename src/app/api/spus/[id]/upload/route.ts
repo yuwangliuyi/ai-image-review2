@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
@@ -15,10 +15,8 @@ async function ensureDir(dir: string) {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { id: spuId } = await params;
     const spu = await prisma.spu.findUnique({ where: { id: spuId } });
@@ -72,12 +70,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         mimeType: file.type || "image/png",
         spuId,
         uploadedById: userId,
+        uploadDepartment: actor.user.department,
         batchId,
       });
     }
 
     // 批量写入数据库（单事务）：避免逐条插入反复抢占 SQLite 写锁导致其他请求超时（P1008）
-    const uploadedImages = await prisma.$transaction(
+    const uploadedImages = await Promise.all(
       imageData.map((data) => prisma.image.create({ data }))
     );
 
@@ -87,19 +86,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     return NextResponse.json(uploadedImages, { status: 201 });
+    });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ error: "上传失败" }, { status: 500 });
+    return handleApiError(error, "上传失败");
   }
 }
 
 // GET - List images for a SPU
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { id: spuId } = await params;
     const images = await prisma.image.findMany({
@@ -115,19 +112,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     return NextResponse.json(images);
+    });
   } catch (error) {
-    console.error("Get SPU images error:", error);
-    return NextResponse.json({ error: "获取图片列表失败" }, { status: 500 });
+    return handleApiError(error, "获取图片列表失败");
   }
 }
 
 // DELETE - Delete an image from SPU
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { id: spuId } = await params;
     const { imageId } = await req.json();
@@ -142,8 +137,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     await prisma.image.delete({ where: { id: imageId } });
     return NextResponse.json({ success: true });
+    });
   } catch (error) {
-    console.error("Delete image error:", error);
-    return NextResponse.json({ error: "删除失败" }, { status: 500 });
+    return handleApiError(error, "删除失败");
   }
 }

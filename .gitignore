@@ -1,8 +1,12 @@
 node_modules/
 .next/
 .env
+.env.*
+!.env.example
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 public/uploads/
 approved-images/
 dist/
@@ -11,3 +15,8 @@ dist/
 tmp/
 tsconfig.tsbuildinfo
 *.zip
+.test-dist/
+__pycache__/
+output/
+.playwright-cli/
+logs/

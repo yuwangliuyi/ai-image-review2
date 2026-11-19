@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": ["next-env.d.ts", "src/lib/sso/**/*.ts", "src/components/sso/**/*.tsx", "src/app/api/sso-setup/**/*.ts", "src/app/api/auth/mode/**/*.ts", "src/app/api/auth/me/**/*.ts", "src/app/api/users/**/*.ts", "src/app/signed-out/**/*.tsx"],
+  "exclude": ["node_modules", "jx-sso-integration"]
+}

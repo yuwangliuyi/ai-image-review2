@@ -1,9 +1,9 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
 
 export default function AuthLayout({
   children,
@@ -12,16 +12,17 @@ export default function AuthLayout({
   children: React.ReactNode;
   title?: string;
 }) {
-  const { data: session, status } = useSession();
+  const { phase, user } = useSsoApp();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    // 准备阶段未登录回原登录页；SSO 模式由启动门卫保证身份
+    if (phase === 'legacy' && !user) {
       router.push('/login');
     }
-  }, [status, router]);
+  }, [phase, user, router]);
 
-  if (status === 'loading') {
+  if (!user) {
     return (
       <div className="flex items-center justify-center h-screen" style={{ background: 'var(--color-bg)' }}>
         <div
@@ -31,8 +32,6 @@ export default function AuthLayout({
       </div>
     );
   }
-
-  if (!session) return null;
 
   return <AppLayout title={title}>{children}</AppLayout>;
 }

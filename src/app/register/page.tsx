@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { UserPlus, X } from 'lucide-react';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 const ROLES = [
   { value: 'UPLOADER', label: '上传者 — 上传图片、查看自己的图片和仪表盘' },
@@ -13,7 +14,7 @@ const ROLES = [
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { phase, user: sessionUser } = useSsoApp();
   const [form, setForm] = useState({
     name: '',
     department: '',
@@ -28,22 +29,16 @@ export default function RegisterPage() {
 
   // 仅管理员或审核员可访问此页面
   useEffect(() => {
-    if (status === 'loading') return;
-    if (status === 'unauthenticated') {
-      router.replace('/login');
+    if (!sessionUser) {
+      if (phase === 'legacy') router.replace('/login');
       return;
     }
-    const user = session?.user as any;
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
-    if (user.role !== 'ADMIN' && user.role !== 'REVIEWER') {
+    if (sessionUser.role !== 'ADMIN' && sessionUser.role !== 'REVIEWER') {
       router.replace('/dashboard');
     }
-  }, [session, status, router]);
+  }, [sessionUser, phase, router]);
 
-  if (status === 'loading' || !session) {
+  if (!sessionUser) {
     return (
       <div className="flex items-center justify-center h-screen" style={{ background: 'var(--color-bg)' }}>
         <div
@@ -54,7 +49,7 @@ export default function RegisterPage() {
     );
   }
 
-  const user = session?.user as any;
+  const user = sessionUser;
   if (user?.role !== 'ADMIN' && user?.role !== 'REVIEWER') {
     return null;
   }
@@ -76,7 +71,7 @@ export default function RegisterPage() {
     setError('');
     setSuccess('');
 
-    const res = await fetch('/api/auth/register', {
+    const res = await ssoFetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),

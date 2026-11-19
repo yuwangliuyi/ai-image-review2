@@ -1,20 +1,25 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import AuthLayout from '@/components/AuthLayout';
 import { Users, Trash2, Shield, UserCheck, Upload, UserPlus, FileSpreadsheet, Download, X, AlertCircle, CheckCircle2, Eye } from 'lucide-react';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 interface UserItem {
-  id: string;
+  id: string | null;
+  username?: string;
   name: string;
   department: string;
   email: string;
   role: string;
-  createdAt: string;
+  rosterStatus?: string | null;
+  rosterCheckedAt?: string | null;
+  ssoUserId?: number | null;
+  createdAt: string | null;
   _count: { uploadedSpus: number; reviews: number };
 }
 
@@ -35,18 +40,23 @@ interface BatchResult {
 
 export default function AdminUsersPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const currentUser = session?.user as any;
+  const { user: currentUser, phase } = useSsoApp();
   const isReviewer = currentUser?.role === 'REVIEWER';
   const isAdmin = currentUser?.role === 'ADMIN';
+  const isSso = phase === 'sso';
+  const [rosterMessage, setRosterMessage] = useState('');
+  const [refreshNumber, setRefreshNumber] = useState(0);
+  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
 
   useEffect(() => {
-    if (session && !isAdmin && !isReviewer) {
+    if (currentUser && !isAdmin && !isReviewer) {
       router.replace('/dashboard');
     }
-  }, [session, isAdmin, isReviewer, router]);
+  }, [currentUser, isAdmin, isReviewer, router]);
 
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const viewer = JSON.stringify([phase, currentUser?.id, currentUser?.role]);
+  const [directory, setDirectory] = useState<{ viewer: string; users: UserItem[] } | null>(null);
+  const users = directory?.viewer === viewer ? directory.users : [];
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
 
@@ -58,27 +68,64 @@ export default function AdminUsersPage() {
   const [parseError, setParseError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    const params = roleFilter ? `?role=${roleFilter}` : '';
-    const res = await fetch(`/api/users${params}`);
-    const data = await res.json();
-    if (Array.isArray(data)) setUsers(data);
-    setLoading(false);
-  };
+  const fetchUsers = () => setRefreshNumber(n => n + 1);
 
   useEffect(() => {
-    fetchUsers();
-  }, [roleFilter]);
+    if (!currentUser || (!isAdmin && !isReviewer)) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setRosterMessage('');
+    (async () => {
+      try {
+        const url = !isSso ? '/api/users' : isAdmin ? '/api/users/refresh' : '/api/users/members';
+        const res = await ssoFetch(url, {
+          method: isSso && isAdmin ? 'POST' : 'GET', cache: 'no-store', signal: controller.signal,
+        });
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) setDirectory(null);
+          throw new Error(data?.detail?.message || data?.error || '请稍后重试');
+        }
+        const people = isSso ? data.members : data;
+        if (!Array.isArray(people)) throw new Error('名单格式有误，请稍后重试');
+        setDirectory({ viewer, users: people });
+      } catch (error) {
+        if (!controller.signal.aborted) setRosterMessage('成员名单读取失败。' + (error instanceof Error ? error.message : '请重试'));
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [viewer, currentUser?.id, isAdmin, isReviewer, isSso, refreshNumber]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`确定要删除用户 "${name}" 吗？`)) return;
-    await fetch('/api/users', {
+    await ssoFetch('/api/users', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
     fetchUsers();
+  };
+
+  // ── 角色分配：待授权人员的权限由管理员按原角色模型分配，立即生效 ──
+  const handleRoleChange = async (id: string, role: string) => {
+    setRoleUpdating(id);
+    try {
+      const res = await ssoFetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, role }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        alert(data?.detail?.message || data?.error || '角色更新失败');
+      }
+      fetchUsers();
+    } finally {
+      setRoleUpdating(null);
+    }
   };
 
   // ── 批量导入：解析上传的表格 ──
@@ -130,7 +177,7 @@ export default function AdminUsersPage() {
   // ── 批量导入：确认创建 ──
   const handleBatchCreate = async () => {
     setBatchStep('creating');
-    const res = await fetch('/api/users/batch', {
+    const res = await ssoFetch('/api/users/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ users: parsedUsers }),
@@ -186,6 +233,7 @@ export default function AdminUsersPage() {
       ADMIN: { label: '管理员', className: 'bg-purple-100 text-purple-700', Icon: Shield },
       REVIEWER: { label: '审核员', className: 'bg-blue-100 text-blue-700', Icon: UserCheck },
       UPLOADER: { label: '上传者', className: 'bg-gray-100 text-gray-700', Icon: Upload },
+      PENDING: { label: '待授权', className: 'bg-amber-100 text-amber-700', Icon: UserCheck },
     };
     const item = map[role] || map.UPLOADER;
     const Icon = item.Icon;
@@ -202,7 +250,8 @@ export default function AdminUsersPage() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900">用户管理</h2>
         <div className="flex gap-2 items-center">
-          {(isAdmin || isReviewer) && (
+          {isSso && (isAdmin || isReviewer) && <button disabled={loading} onClick={fetchUsers}>刷新名单</button>}
+          {!isSso && (isAdmin || isReviewer) && (
             <>
               <Link
                 href="/register"
@@ -220,7 +269,7 @@ export default function AdminUsersPage() {
               </button>
             </>
           )}
-          {['', 'ADMIN', 'REVIEWER', 'UPLOADER'].map((r) => (
+          {['', 'ADMIN', 'REVIEWER', 'UPLOADER', 'PENDING'].map((r) => (
             <button
               key={r}
               onClick={() => setRoleFilter(r)}
@@ -230,12 +279,13 @@ export default function AdminUsersPage() {
                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {r === '' ? '全部' : r === 'ADMIN' ? '管理员' : r === 'REVIEWER' ? '审核员' : '上传者'}
+              {r === '' ? '全部' : r === 'ADMIN' ? '管理员' : r === 'REVIEWER' ? '审核员' : r === 'PENDING' ? '待授权' : '上传者'}
             </button>
           ))}
         </div>
       </div>
 
+      {rosterMessage && <p role="status">{rosterMessage}{users.length > 0 && ' 以下为上次成功读取的名单。'}</p>}
       {/* ── 用户列表 ── */}
       {loading ? (
         <div className="flex justify-center py-12">
@@ -244,7 +294,7 @@ export default function AdminUsersPage() {
       ) : users.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
           <Users className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-400">暂无用户</p>
+          <p className="text-gray-400">{rosterMessage ? '当前没有可显示的名单' : '暂无用户'}</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -254,38 +304,62 @@ export default function AdminUsersPage() {
                 <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">姓名</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">部门</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">邮箱</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{isSso ? '公司账号' : '邮箱'}</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">角色</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">SPU任务</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">审核数</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">注册时间</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">操作</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">应用注册时间</th>
+                  {!isSso && isAdmin && <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">操作</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
+                {users.filter(u => !roleFilter || u.role === roleFilter).map((user) => (
+                  <tr key={isSso ? user.ssoUserId : user.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{user.department}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
-                    <td className="px-4 py-3">{roleBadge(user.role)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{user.department || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{isSso ? user.username : user.email}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {user.id ? roleBadge(user.role) : <span className="text-xs text-gray-600">未分配 · 尚未关联本地账号</span>}
+                        {isAdmin && user.id && (
+                          <select
+                            aria-label={`${user.name} 的角色`}
+                            value={user.role}
+                            disabled={roleUpdating === user.id || !!rosterMessage || user.rosterStatus === 'DISABLED'}
+                            onChange={(e) => user.id && handleRoleChange(user.id, e.target.value)}
+                            className="px-2 py-1 rounded-md text-xs border border-gray-200 bg-white text-gray-700"
+                          >
+                            <option value="PENDING">待授权</option>
+                            <option value="UPLOADER">上传者</option>
+                            <option value="REVIEWER">审核员</option>
+                            <option value="ADMIN">管理员</option>
+                          </select>
+                        )}
+                        {isSso && <span className="text-xs text-gray-600" title={user.rosterCheckedAt ? new Date(user.rosterCheckedAt).toLocaleString('zh-CN') : undefined}>
+                          {({ AVAILABLE: '可用', DISABLED: '账号不可用', NOT_LISTED: '不在当前授权名单', UNLINKED: '未关联' } as Record<string,string>)[user.rosterStatus ?? ''] ?? '尚未刷新'}
+                        </span>}
+                        {!isSso && user.ssoUserId != null && (
+                          <span className="text-[10px] text-gray-400" title="已关联佳选账号">
+                            已关联
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600 text-center">{user._count.uploadedSpus}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 text-center">{user._count.reviews}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {new Date(user.createdAt).toLocaleDateString('zh-CN')}
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString('zh-CN') : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {isAdmin && (
+                    {isAdmin && !isSso && <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => handleDelete(user.id, user.name)}
+                          onClick={() => user.id && handleDelete(user.id, user.name)}
                           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-600 hover:text-white bg-red-50 hover:bg-red-600 rounded-md transition-colors"
                           title="删除用户"
                         >
                           <Trash2 className="w-3 h-3" />
                           删除
                         </button>
-                      )}
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

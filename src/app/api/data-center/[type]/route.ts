@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ type: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { type } = await params;
     const { searchParams } = new URL(req.url);
@@ -179,8 +177,8 @@ export async function GET(
     }
 
     return NextResponse.json({ items, total, page, limit });
+    });
   } catch (error) {
-    console.error("Data center error:", error);
-    return NextResponse.json({ error: "获取数据失败" }, { status: 500 });
+    return handleApiError(error, "获取数据失败");
   }
 }

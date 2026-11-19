@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 import { readFile, stat } from "fs/promises";
 import path from "path";
 import JSZip from "jszip";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { ids } = await req.json();
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -69,15 +67,15 @@ export async function POST(req: NextRequest) {
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const zipFileName = `${label}_${ts}.zip`;
 
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(new Uint8Array(zipBuffer), {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(zipFileName)}`,
         "Content-Length": zipBuffer.length.toString(),
       },
     });
+    });
   } catch (error) {
-    console.error("Batch download error:", error);
-    return NextResponse.json({ error: "批量下载失败" }, { status: 500 });
+    return handleApiError(error, "批量下载失败");
   }
 }

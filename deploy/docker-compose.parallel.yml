@@ -1,0 +1,56 @@
+# 在独立端口和数据目录启动验证实例。
+name: ai-image-review-sso90-preview
+services:
+  preview:
+    image: ${AI_REVIEW_PREVIEW_IMAGE:?必须指定本次已验证的镜像标签}
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ai-image-review-sso90-preview
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${AI_REVIEW_PREVIEW_ENV_FILE:-../.env}
+    environment:
+      DATABASE_URL: file:/app/data/dev.db
+      NEXTAUTH_URL: ${NEXTAUTH_URL:?请填写用户访问应用的完整地址}
+      AUTH_COOKIE_PREFIX: ai-review-sso90-preview
+      AI_REVIEW_INSTANCE_MODE: validation
+      JX_SSO_ONBOARDING_MODE: guided
+      JX_SSO_ENVIRONMENT: test
+      JX_SSO_WEB_URL: ${JX_SSO_WEB_URL:?请填写 SSO 门户地址}
+      JX_SSO_API_URL: ${JX_SSO_API_URL:?请填写 SSO API 地址}
+      PORT: 8001
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${AI_REVIEW_BIND_ADDRESS:-127.0.0.1}:${AI_REVIEW_PREVIEW_PORT:-28001}:8001"
+    volumes:
+      - type: bind
+        source: /data/ai-image-review-sso90-preview/data
+        target: /app/data
+        bind: { create_host_path: false }
+      - type: bind
+        source: /data/upload/ai-image-review-sso90-preview/uploads
+        target: /app/public/uploads
+        bind: { create_host_path: false }
+      - type: bind
+        source: /data/upload/ai-image-review-sso90-preview/approved-images
+        target: /app/approved-images
+        bind: { create_host_path: false }
+      - type: bind
+        source: /data/logs/ai-image-review-sso90-preview
+        target: /app/logs
+        bind: { create_host_path: false }
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8001/api/auth/mode').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }

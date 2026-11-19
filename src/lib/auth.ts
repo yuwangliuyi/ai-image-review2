@@ -2,8 +2,10 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { authCookies } from "./auth-cookies";
 
 export const authOptions: NextAuthOptions = {
+  cookies: authCookies(),
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -14,6 +16,15 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.name || !credentials?.password) {
           throw new Error("请输入姓名和密码");
+        }
+
+        // guided 接入阶段管控：SSO_ONLY / 维护锁下拒绝原登录（后端层面关闭）
+        const ssoState = await prisma.ssoSetupState.findUnique({ where: { id: 1 } });
+        if (ssoState?.phase === "SSO_ONLY") {
+          throw new Error("已切换为公司账号登录");
+        }
+        if (ssoState?.maintenanceLocked) {
+          throw new Error("应用正在核对账号关联，请联系维护者");
         }
 
         const user = await prisma.user.findUnique({
@@ -63,5 +74,5 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
-  secret: process.env.NEXTAUTH_SECRET || "ai-image-review-secret-change-in-production",
+  secret: process.env.NEXTAUTH_SECRET,
 };

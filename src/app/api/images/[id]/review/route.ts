@@ -1,6 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 import { notifySpuStatusChange, notifyImageRejected } from "@/lib/notifications";
 import { saveApprovedImage } from "@/lib/storage";
 import path from "path";
@@ -8,7 +9,7 @@ import path from "path";
 const VALID_ACTIONS = ["APPROVED", "REJECTED"];
 
 /** Auto-compute SPU status based on all its images, auto-archive, and notify uploader */
-async function syncSpuStatus(spuId: string, spuName: string, uploadedById: string) {
+async function syncSpuStatus(prisma: Prisma.TransactionClient, spuId: string, spuName: string, uploadedById: string) {
   const images = await prisma.image.findMany({
     where: { spuId },
     select: { status: true },
@@ -39,7 +40,7 @@ async function syncSpuStatus(spuId: string, spuName: string, uploadedById: strin
     const detail = spuStatus === "APPROVED"
       ? `${images.length} 张图片全部通过`
       : `${images.filter(i => i.status === "REJECTED").length} 张被驳回`;
-    await notifySpuStatusChange(uploadedById, spuName, spuId, spuStatus, detail);
+    await notifySpuStatusChange(uploadedById, spuName, spuId, spuStatus, detail, prisma);
   }
 
   // 只要有图片通过就归档；全部驳回则删除归档
@@ -92,10 +93,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { id: imageId } = await params;
     const { action, comment } = await req.json();
@@ -138,6 +137,7 @@ export async function POST(
       data: {
         imageId,
         reviewerId,
+        reviewDepartment: actor.user.department,
         action,
         comment: comment || null,
       },
@@ -150,7 +150,8 @@ export async function POST(
         image.filename,
         image.spu.name,
         image.spuId,
-        comment || undefined
+        comment || undefined,
+        prisma
       );
     }
 
@@ -183,11 +184,11 @@ export async function POST(
     }
 
     // 同步 SPU 状态（含自动归档 + 通知）
-    await syncSpuStatus(image.spuId, image.spu.name, image.spu.uploadedById);
+    await syncSpuStatus(prisma, image.spuId, image.spu.name, image.spu.uploadedById);
 
     return NextResponse.json({ success: true, action, imageId });
+    });
   } catch (error) {
-    console.error("Image review error:", error);
-    return NextResponse.json({ error: "审核失败" }, { status: 500 });
+    return handleApiError(error, "审核失败");
   }
 }

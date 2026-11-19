@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import AuthLayout from '@/components/AuthLayout';
+import SsoImage from '@/components/SsoImage';
 import {
   CheckCircle2,
   XCircle,
@@ -19,6 +19,8 @@ import {
   User,
   FolderOpen,
 } from 'lucide-react';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
+import { useSsoApp } from '@/components/sso/SsoAppGate';
 
 interface ReviewImage {
   id: string;
@@ -82,17 +84,17 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ReviewPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const { user } = useSsoApp();
 
-  const userRole = (session?.user as any)?.role;
+  const userRole = user?.role;
 
   // 角色守卫：仅 REVIEWER 和 ADMIN 可访问审核中心
   useEffect(() => {
-    if (status === 'authenticated' && userRole === 'UPLOADER') {
+    if (userRole === 'UPLOADER') {
       router.replace('/dashboard');
     }
-  }, [status, userRole, router]);
+  }, [userRole, router]);
 
   const [images, setImages] = useState<ReviewImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,13 +124,13 @@ export default function ReviewPage() {
   const fetchImages = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/spus?limit=50');
+      const res = await ssoFetch('/api/spus?limit=50');
       const data = await res.json();
       if (!data.spus) return;
 
       const allImages: ReviewImage[] = [];
       for (const spu of data.spus) {
-        const imgRes = await fetch(`/api/spus/${spu.id}/upload`);
+        const imgRes = await ssoFetch(`/api/spus/${spu.id}/upload`);
         const imgData = await imgRes.json();
         if (Array.isArray(imgData)) {
           allImages.push(
@@ -161,7 +163,7 @@ export default function ReviewPage() {
     setReviewingId(currentImage.id);
     setMessage('');
     try {
-      const res = await fetch(`/api/images/${currentImage.id}/review`, {
+      const res = await ssoFetch(`/api/images/${currentImage.id}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, comment: comment.trim() || undefined }),
@@ -425,13 +427,11 @@ export default function ReviewPage() {
               }}
             />
             {currentImage && (
-              <img
+              <SsoImage
                 src={`/api/images/${currentImage.id}/file`}
+                loading="eager"
                 alt={currentImage.filename}
                 className="absolute inset-0 w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.02]"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
               />
             )}
             {/* Hover 放大提示 */}
@@ -653,14 +653,11 @@ export default function ReviewPage() {
                       backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0',
                     }}
                   />
-                  <img
+                  <SsoImage
                     src={`/api/images/${img.id}/file`}
                     alt={img.filename}
                     className="absolute inset-0 w-full h-full object-cover"
                     loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
                   />
                   {/* 状态指示条 */}
                   <div
@@ -724,8 +721,9 @@ export default function ReviewPage() {
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-          <img
+          <SsoImage
             src={`/api/images/${currentImage.id}/file`}
+                loading="eager"
             alt={currentImage.filename}
             className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 // GET - 获取当前用户的通知列表
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const userId = (session.user as any).id;
     const { searchParams } = new URL(req.url);
@@ -29,19 +27,17 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({ notifications, total, unreadCount });
+    });
   } catch (error) {
-    console.error("Notifications fetch error:", error);
-    return NextResponse.json({ error: "获取通知失败" }, { status: 500 });
+    return handleApiError(error, "获取通知失败");
   }
 }
 
 // PATCH - 标记通知为已读
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const userId = (session.user as any).id;
     const { id, all } = await req.json();
@@ -65,8 +61,8 @@ export async function PATCH(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, unreadCount });
+    });
   } catch (error) {
-    console.error("Notification update error:", error);
-    return NextResponse.json({ error: "操作失败" }, { status: 500 });
+    return handleApiError(error, "操作失败");
   }
 }

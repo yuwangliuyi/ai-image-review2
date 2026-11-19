@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const userRole = (session.user as any).role;
     const userId = (session.user as any).id;
@@ -242,8 +240,8 @@ export async function GET(req: NextRequest) {
       rejectionReasons,
       dailyData: Object.entries(dailyData).map(([date, count]) => ({ date, count })),
     });
+    });
   } catch (error) {
-    console.error("Stats error:", error);
-    return NextResponse.json({ error: "获取统计数据失败" }, { status: 500 });
+    return handleApiError(error, "获取统计数据失败");
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import AuthLayout from '@/components/AuthLayout';
 import { Bell, CheckCheck, Package, Image as ImageIcon, XCircle } from 'lucide-react';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 interface Notification {
   id: string;
@@ -41,7 +42,7 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/notifications?limit=50');
+      const res = await ssoFetch('/api/notifications?limit=50');
       const data = await res.json();
       setNotifications(data.notifications || []);
     } catch (e) {
@@ -53,7 +54,7 @@ export default function NotificationsPage() {
   useEffect(() => { fetchNotifications(); }, []);
 
   const markAllRead = async () => {
-    await fetch('/api/notifications', {
+    await ssoFetch('/api/notifications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true }),
@@ -62,7 +63,7 @@ export default function NotificationsPage() {
   };
 
   const markRead = async (id: string) => {
-    await fetch('/api/notifications', {
+    await ssoFetch('/api/notifications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),

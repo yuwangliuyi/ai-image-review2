@@ -1,13 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "初始化数据库表结构..."
-cd /app && node node_modules/prisma/build/index.js db push --skip-generate
-
-echo "初始化账号（upsert 幂等，已有用户跳过）..."
-cd /app && node prisma/seed.js
-
-echo "启动 Next.js (端口 8001)..."
-mkdir -p /app/logs
-# 日志同时输出到控制台（docker logs 可看）和宿主机挂载的文件（/data/ai-image-review/logs/app.log）
-node server.js 2>&1 | tee -a /app/logs/app.log
+cd /app
+node scripts/check-database.mjs
+echo "启动 Next.js..."
+exec node scripts/start-server.mjs

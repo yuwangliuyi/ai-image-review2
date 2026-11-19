@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import AuthLayout from '@/components/AuthLayout';
+import SsoImage from '@/components/SsoImage';
 import {
   Archive, Download, Package, Image, CheckSquare, Square,
   FolderDown, X, Loader2, ChevronDown, ChevronUp, FileImage,
 } from 'lucide-react';
+import { ssoFetch } from '@/lib/sso/frontend/app-fetch';
 
 interface ArchiveImage {
   id: string;
@@ -48,7 +50,7 @@ export default function ArchivePage() {
     setLoading(true);
     setExpandedIds(new Set());
     setSelectedImages(new Set());
-    fetch(`/api/archives?page=${page}&limit=20`)
+    ssoFetch(`/api/archives?page=${page}&limit=20`)
       .then((r) => r.json())
       .then((data) => {
         setArchives(data.archives || []);
@@ -106,7 +108,7 @@ export default function ArchivePage() {
     e.stopPropagation();
     setDownloadingId(image.id);
     try {
-      const res = await fetch(`/api/images/${image.id}/file`);
+      const res = await ssoFetch(`/api/images/${image.id}/file`);
       if (!res.ok) throw new Error('下载失败');
       const blob = await res.blob();
       triggerDownload(blob, image.filename);
@@ -121,7 +123,7 @@ export default function ArchivePage() {
     e.stopPropagation();
     setDownloadingId(archiveItem.id);
     try {
-      const res = await fetch(`/api/archives/${archiveItem.id}/download`);
+      const res = await ssoFetch(`/api/archives/${archiveItem.id}/download`);
       if (!res.ok) throw new Error('下载失败');
       const blob = await res.blob();
       triggerDownload(blob, `${archiveItem.spuName}.zip`);
@@ -138,7 +140,7 @@ export default function ArchivePage() {
     setProgress({ current: 0, total: selectedImages.size, label: '正在打包...' });
 
     try {
-      const res = await fetch('/api/images/batch-download', {
+      const res = await ssoFetch('/api/images/batch-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: Array.from(selectedImages) }),
@@ -306,7 +308,7 @@ export default function ArchivePage() {
                     {/* 缩略图 */}
                     <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
                       {images[0] ? (
-                        <img
+                        <SsoImage
                           src={`/api/images/${images[0].id}/file`}
                           alt={a.spuName}
                           className="w-full h-full object-cover"
@@ -399,7 +401,7 @@ export default function ArchivePage() {
                             >
                               {/* 缩略图 */}
                               <div className="aspect-square bg-gray-100 relative">
-                                <img
+                                <SsoImage
                                   src={`/api/images/${img.id}/file`}
                                   alt={img.filename}
                                   className="w-full h-full object-cover"

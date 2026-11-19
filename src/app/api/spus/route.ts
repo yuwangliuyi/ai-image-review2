@@ -1,9 +1,10 @@
+import type { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth-utils";
+import { withBusinessTransaction } from "@/lib/sso/identity";
+import { handleApiError } from "@/lib/sso/errors";
 
 /** 从所有审核员中随机选取一位分配任务 */
-async function pickReviewer(): Promise<string> {
+async function pickReviewer(prisma: Prisma.TransactionClient): Promise<string> {
   const reviewers = await prisma.user.findMany({
     where: { role: "REVIEWER" },
     select: { id: true },
@@ -16,10 +17,8 @@ async function pickReviewer(): Promise<string> {
 // POST - Create a new SPU task
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { name, category, countryStyle, shopName } = await req.json();
     if (!name) {
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 自动分配审核员
-    const assignedReviewerId = await pickReviewer();
+    const assignedReviewerId = await pickReviewer(prisma);
 
     const spu = await prisma.spu.create({
       data: {
@@ -75,19 +74,17 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(spu, { status: 201 });
+    });
   } catch (error) {
-    console.error("Create SPU error:", error);
-    return NextResponse.json({ error: "创建SPU任务失败" }, { status: 500 });
+    return handleApiError(error, "创建SPU任务失败");
   }
 }
 
 // GET - List SPU tasks
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: "未登录" }, { status: 401 });
-    }
+    return await withBusinessTransaction(req, async (prisma, actor) => {
+    const session = { user: actor.user };
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
@@ -142,8 +139,8 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ spus: spusWithStats, total, page, totalPages: Math.ceil(total / limit) });
+    });
   } catch (error) {
-    console.error("List SPUs error:", error);
-    return NextResponse.json({ error: "获取SPU列表失败" }, { status: 500 });
+    return handleApiError(error, "获取SPU列表失败");
   }
 }
